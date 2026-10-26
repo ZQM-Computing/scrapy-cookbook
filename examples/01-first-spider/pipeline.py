@@ -13,8 +13,15 @@ class ProductValidationPipeline:
 
     required_text_fields = ("title", "price_text", "url", "source_url")
 
-    def __init__(self):
+    def __init__(self, deduplicate=True):
+        self.deduplicate = deduplicate
         self.seen_urls = set()
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(
+            deduplicate=crawler.settings.getbool("PRODUCT_DEDUPE_IN_MEMORY", True)
+        )
 
     @staticmethod
     def _canonical_http_url(value, field_name):
@@ -54,8 +61,8 @@ class ProductValidationPipeline:
         product_url = self._canonical_http_url(item["url"], "url")
         self._canonical_http_url(item["source_url"], "source_url")
 
-        if product_url in self.seen_urls:
-            raise DropItem(f"duplicate product URL: {product_url}")
-
-        self.seen_urls.add(product_url)
+        if self.deduplicate:
+            if product_url in self.seen_urls:
+                raise DropItem(f"duplicate product URL: {product_url}")
+            self.seen_urls.add(product_url)
         return item

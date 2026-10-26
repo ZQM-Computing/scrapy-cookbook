@@ -1,10 +1,10 @@
 """Optional PostgreSQL sink for validated Scrapy catalog items."""
 from datetime import datetime, timezone
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 from itemadapter import ItemAdapter
 from scrapy.exceptions import DropItem
-from pipeline import ProductValidationPipeline
 
 
 class PostgresExportPipeline:
@@ -54,6 +54,25 @@ class PostgresExportPipeline:
             raise
 
     @staticmethod
+    def _canonical_http_url(value, field_name):
+        if not isinstance(value, str) or not value or value != value.strip():
+            raise DropItem(f"{field_name} must be a non-empty URL string")
+        if any(character.isspace() for character in value):
+            raise DropItem(f"{field_name} must not contain whitespace")
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+        except ValueError as exc:
+            raise DropItem(f"{field_name} is malformed: {exc}") from exc
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname or not parsed.netloc:
+            raise DropItem(f"{field_name} must be an absolute HTTP(S) URL")
+        if parsed.username is not None or parsed.password is not None:
+            raise DropItem(f"{field_name} must not contain embedded credentials")
+        if port is not None and not (1 <= port <= 65535):
+            raise DropItem(f"{field_name} contains an invalid port")
+        return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path or "/", parsed.query, ""))
+
+    @staticmethod
     def _record(item):
         adapter = ItemAdapter(item)
         required = ("title", "price_text", "url", "source_url", "extracted_at_utc", "spider_name")
@@ -63,8 +82,8 @@ class PostgresExportPipeline:
             if not isinstance(value, str) or not value.strip():
                 raise DropItem(f"missing or blank required PostgreSQL field: {field}")
             record[field] = value
-        record["url"] = ProductValidationPipeline._canonical_http_url(record["url"], "url")
-        record["source_url"] = ProductValidationPipeline._canonical_http_url(record["source_url"], "source_url")
+        record["url"] = PostgresExportPipeline._canonical_http_url(record["url"], "url")
+        record["source_url"] = PostgresExportPipeline._canonical_http_url(record["source_url"], "source_url")
         try:
             timestamp = datetime.fromisoformat(record["extracted_at_utc"].replace("Z", "+00:00"))
         except ValueError as exc:

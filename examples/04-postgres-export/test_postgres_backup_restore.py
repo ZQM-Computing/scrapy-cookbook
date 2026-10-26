@@ -77,8 +77,9 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                     "CREATE INDEX scraped_products_spider_name_idx "
                     "ON public.scraped_products (spider_name)"
                 )
-                source.executemany(
-                    "INSERT INTO public.scraped_products "
+                with source.cursor() as cursor:
+                    cursor.executemany(
+                        "INSERT INTO public.scraped_products "
                     "(url, title, price_text, source_url, extracted_at_utc, spider_name, first_seen_utc) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     [
@@ -101,7 +102,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                             "2026-10-21T15:00:00Z",
                         ),
                     ],
-                )
+                    )
 
             with tempfile.TemporaryDirectory(prefix="scrapy-pg-restore-") as tmp:
                 dump_path = Path(tmp) / "catalog.dump"
@@ -122,8 +123,9 @@ class PostgresBackupRestoreTests(unittest.TestCase):
 
                 digest = hashlib.sha256(dump_path.read_bytes()).hexdigest()
                 digest_path.write_text(f"{digest}  {dump_path.name}\n", encoding="ascii")
+                recorded_digest = digest_path.read_text(encoding="ascii").split()[0]
                 self.assertEqual(
-                    digest,
+                    recorded_digest,
                     hashlib.sha256(dump_path.read_bytes()).hexdigest(),
                 )
                 subprocess.run(

@@ -38,6 +38,9 @@ class CatalogSpider(scrapy.Spider):
 
             # Avoid emitting partial records when the source markup changes.
             if not title or not price or not href:
+                stats = getattr(getattr(self, "crawler", None), "stats", None)
+                if stats is not None:
+                    stats.inc_value("catalog/items_skipped/incomplete")
                 self.logger.warning(
                     "Skipping incomplete product record on %s", response.url
                 )

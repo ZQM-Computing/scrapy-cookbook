@@ -30,8 +30,11 @@ class CrawlSummaryTests(unittest.TestCase):
             target = Path(temp_dir) / "reports" / "crawl.json"
             extension = CrawlSummaryExtension(target, FakeStats())
             extension.started_at_utc = "2026-01-01T00:00:00+00:00"
+            extension.item_scraped({"title": "accepted"}, None, FakeSpider())
+            extension.item_scraped({"title": "accepted too"}, None, FakeSpider())
             extension.item_dropped({}, None, Exception("duplicate product URL"), FakeSpider())
             extension.item_dropped({}, None, Exception("missing required field: title"), FakeSpider())
+            extension.item_dropped({}, None, Exception("validation text mentions a duplicate but is not a duplicate"), FakeSpider())
             extension.item_error({}, None, FakeSpider(), ValueError("pipeline broke"))
             extension.spider_error(ValueError("parse broke"), None, FakeSpider())
             extension.request_dropped(Mock(), FakeSpider())
@@ -43,9 +46,10 @@ class CrawlSummaryTests(unittest.TestCase):
             self.assertEqual(summary["spider_name"], "catalog-test")
             self.assertEqual(summary["close_reason"], "finished")
             self.assertEqual(summary["stats"]["item_scraped_count"], 3)
+            self.assertEqual(summary["items_scraped_signal_count"], 2)
             self.assertEqual(summary["item_drop_categories"], {
                 "duplicate": 1,
-                "validation_or_policy": 1,
+                "validation_or_policy": 2,
             })
             self.assertEqual(summary["pipeline_errors_by_type"], {"ValueError": 1})
             self.assertEqual(summary["spider_errors_by_type"], {"ValueError": 1})

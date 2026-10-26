@@ -33,7 +33,7 @@ scrapy runspider examples/01-first-spider/spider.py \\
   -O products.json
 ```
 
-The extension writes the JSON summary when the spider closes, using a temporary file and atomic replacement. It includes spider identity, UTC start/close timestamps, close reason, selected Scrapy stats (including response status and downloader exception counts when present), item-drop categories, pipeline/spider error counts by exception type, and scheduler-dropped request count. It does not store exception messages or scraped item contents in the summary. The report is an operational aid, not a complete audit log: extraction skips logged directly by the spider and failures that Scrapy does not expose through the connected signals may not appear as a dedicated category. Protect and retain the report according to your data-governance requirements.
+The extension writes the JSON summary when the spider closes, using a temporary file and atomic replacement. It includes spider identity, UTC start/close timestamps, close reason, selected Scrapy stats (including response status, downloader exception counts, and incomplete-record skip counts when present), the count of items that passed all pipelines, item-drop categories, pipeline/spider error counts by exception type, and scheduler-dropped request count. It does not store exception messages or scraped item contents in the summary. The report is an operational aid, not a complete audit log: other extraction failures that are logged directly by the spider and failures that Scrapy does not expose through the connected signals may not appear as a dedicated category. Protect and retain the report according to your data-governance requirements.
 
 ## Optional persistent deduplication (SQLite)
 

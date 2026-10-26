@@ -50,9 +50,13 @@ class PostgresExportPipeline:
                     """)
                 self.connection.commit()
             except Exception:
-                self.connection.rollback()
-                self.connection.close()
-                self.connection = None
+                # Preserve the schema/bootstrap error even if rollback or close
+                # also fails because the database connection is broken.
+                try:
+                    self.connection.rollback()
+                except Exception:
+                    pass
+                self._close_connection()
                 raise
 
     @staticmethod
@@ -114,16 +118,31 @@ class PostgresExportPipeline:
                 inserted = cursor.fetchone()
             self.connection.commit()
         except Exception:
-            self.connection.rollback()
+            try:
+                self.connection.rollback()
+            except Exception:
+                # A failed rollback leaves transaction state unknown. Discard
+                # the connection and preserve the original database exception.
+                self._close_connection()
             raise
         if inserted is None:
             raise DropItem(f"duplicate product URL already stored: {record['url']}")
         return item
 
-    def close_spider(self, spider):
-        if self.connection is not None:
+    def _close_connection(self):
+        """Detach and close the connection without masking an active failure."""
+        connection, self.connection = self.connection, None
+        if connection is not None:
             try:
-                self.connection.rollback()
+                connection.close()
+            except Exception:
+                # Cleanup is best-effort when handling an earlier database error.
+                pass
+
+    def close_spider(self, spider):
+        connection, self.connection = self.connection, None
+        if connection is not None:
+            try:
+                connection.rollback()
             finally:
-                self.connection.close()
-                self.connection = None
+                connection.close()

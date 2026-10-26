@@ -10,11 +10,12 @@ from scrapy.exceptions import DropItem
 class PostgresExportPipeline:
     """Insert catalog records with per-item transactions and URL idempotency."""
 
-    def __init__(self, dsn, connect_factory=None):
+    def __init__(self, dsn, connect_factory=None, auto_create_table=True):
         if not isinstance(dsn, str) or not dsn.strip():
             raise ValueError("SCRAPY_POSTGRES_DSN must be configured")
         self.dsn = dsn
         self.connect_factory = connect_factory
+        self.auto_create_table = auto_create_table
         self.connection = None
 
     @classmethod
@@ -22,7 +23,7 @@ class PostgresExportPipeline:
         dsn = crawler.settings.get("SCRAPY_POSTGRES_DSN") or os.environ.get("SCRAPY_POSTGRES_DSN")
         if not dsn:
             raise ValueError("Set SCRAPY_POSTGRES_DSN in Scrapy settings or the environment")
-        return cls(dsn)
+        return cls(dsn, auto_create_table=crawler.settings.getbool("POSTGRES_AUTO_CREATE_TABLE", True))
 
     def open_spider(self, spider):
         connect = self.connect_factory
@@ -33,25 +34,26 @@ class PostgresExportPipeline:
                 raise RuntimeError("PostgreSQL export requires psycopg 3; install examples/04-postgres-export/requirements.txt") from exc
             connect = psycopg.connect
         self.connection = connect(self.dsn)
-        try:
-            with self.connection.cursor() as cursor:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS scraped_products (
-                        url TEXT PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        price_text TEXT NOT NULL,
-                        source_url TEXT NOT NULL,
-                        extracted_at_utc TIMESTAMPTZ NOT NULL,
-                        spider_name TEXT NOT NULL,
-                        first_seen_utc TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-            self.connection.commit()
-        except Exception:
-            self.connection.rollback()
-            self.connection.close()
-            self.connection = None
-            raise
+        if self.auto_create_table:
+            try:
+                with self.connection.cursor() as cursor:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS scraped_products (
+                            url TEXT PRIMARY KEY,
+                            title TEXT NOT NULL,
+                            price_text TEXT NOT NULL,
+                            source_url TEXT NOT NULL,
+                            extracted_at_utc TIMESTAMPTZ NOT NULL,
+                            spider_name TEXT NOT NULL,
+                            first_seen_utc TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                self.connection.close()
+                self.connection = None
+                raise
 
     @staticmethod
     def _canonical_http_url(value, field_name):

@@ -113,7 +113,7 @@ class PostgresExportPipelineTests(unittest.TestCase):
 
     def test_invalid_record_is_rejected_before_database_write(self):
         before = len(self.connection.queries)
-        with self.assertRaisesRegex(DropItem, "explicit UTC timezone"):
+        with self.assertRaisesRegex(DropItem, "must include a UTC timezone"):
             self.pipeline.process_item({**self.item, "extracted_at_utc": "2026-10-26T12:30:00"}, self.spider)
         self.assertEqual(len(self.connection.queries), before)
 

@@ -37,7 +37,7 @@ Ensure `postgres_pipeline.py` is importable by the Scrapy process. Configure the
 export SCRAPY_POSTGRES_DSN='postgresql://crawler:REDACTED@localhost:5432/catalog'
 ```
 
-Use a dedicated migration role to apply `001_create_scraped_products.sql` in controlled environments. For a quick demo, `POSTGRES_AUTO_CREATE_TABLE` defaults to `True` and the pipeline runs compatible `CREATE TABLE IF NOT EXISTS` bootstrap DDL. For production or any least-privilege runtime, apply the SQL migration separately and set `POSTGRES_AUTO_CREATE_TABLE = False` in Scrapy settings. This disables all schema DDL in the crawler process so the runtime role can be limited to the required table privileges. Keep schema changes in an explicit migration workflow.
+Use a dedicated migration role to apply `001_create_scraped_products.sql` in controlled environments. This is the initial schema migration: it is safe to apply repeatedly when the table is absent or already matches this schema, but `CREATE TABLE IF NOT EXISTS` does **not** upgrade an existing table whose columns or constraints differ. For existing installations, inspect the live schema and write/test a new versioned `ALTER TABLE` migration before deploying code that depends on changed fields. For a quick demo, `POSTGRES_AUTO_CREATE_TABLE` defaults to `True` and the pipeline runs compatible `CREATE TABLE IF NOT EXISTS` bootstrap DDL. For production or any least-privilege runtime, apply the SQL migration separately and set `POSTGRES_AUTO_CREATE_TABLE = False` in Scrapy settings. This disables all schema DDL in the crawler process so the runtime role can be limited to the required table privileges. Keep schema changes in an explicit migration workflow.
 
 ## Data and transaction contract
 

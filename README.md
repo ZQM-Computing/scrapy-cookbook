@@ -77,7 +77,7 @@ scrapy-cookbook/
 
 ## Roadmap
 
-- Next: separate validation, provenance enrichment, and storage concerns into reusable components, with metrics and clear failure behavior.
+- Next: add a separate storage/export pattern with an explicit schema, idempotency, and failure behavior.
 - Then: demonstrate a database export only after defining schema, idempotency, and failure behavior (04).
 
 ## Contributing

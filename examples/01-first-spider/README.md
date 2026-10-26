@@ -55,6 +55,27 @@ The persistent pipeline is deliberately optional and is not enabled by default. 
 
 SQLite is appropriate for a single machine or a small sequential ingestion job, not a shared distributed crawler. It is not a multi-host coordination service, and concurrent writers may contend on file locks. Back up the database, define its retention policy, and treat the canonicalization key as a data contract. URL normalization here only lowercases scheme/host and strips fragments; it intentionally preserves path and query strings.
 
+## Optional idempotent JSONL export
+
+For a restart-safe local export, use `SQLiteJsonlExportPipeline`. It validates a fixed schema, stores records in SQLite under a canonical-URL primary key, and rebuilds a deterministic JSON Lines snapshot from the durable staging table. Each exported line contains only `schema_version`, `title`, `price_text`, `url`, `source_url`, `extracted_at_utc`, and `spider_name`; unexpected item fields are not copied into the export.
+
+Configure this pipeline as an alternative to both the in-memory duplicate filter and `SQLiteDeduplicationPipeline` (do not enable both SQLite pipelines together):
+
+```python
+"PRODUCT_DEDUPE_IN_MEMORY": False,
+"SCRAPY_EXPORT_DB": "./var/export-items.sqlite3",
+"SCRAPY_EXPORT_JSONL_PATH": "./var/products.jsonl",
+"ITEM_PIPELINES": {
+    "provenance_pipeline.ProvenancePipeline": 100,
+    "pipeline.ProductValidationPipeline": 300,
+    "jsonl_export_pipeline.SQLiteJsonlExportPipeline": 500,
+},
+```
+
+Add these entries to `CatalogSpider.custom_settings` or equivalent project settings, replacing its existing `ITEM_PIPELINES` mapping. Then run the spider as usual. The database is the durable staging source; the JSONL snapshot is regenerated at spider close. If snapshot replacement fails, the prior output remains intact and committed staging records remain available for a later retry. A rerun with already-seen canonical URLs does not duplicate exported rows.
+
+This is a single-host pattern, not distributed coordination. Keep the SQLite database and exported data under appropriate access controls, back them up, and define retention. Atomic replacement protects the local snapshot from partial writes but does not guarantee durability against every filesystem or hardware failure. The JSONL snapshot is a full retained-data export, not just records from the latest run.
+
 ## Test without network access
 
 The tests parse synthetic HTML and synthetic item dictionaries; they make no HTTP requests:
@@ -63,7 +84,7 @@ The tests parse synthetic HTML and synthetic item dictionaries; they make no HTT
 python -m unittest discover -s examples/01-first-spider -p 'test_*.py' -v
 ```
 
-Coverage includes selector extraction, relative URL resolution, pagination, incomplete records, polite/bounded settings, required-field validation, URL validation, conservative URL canonicalization, duplicate rejection, query-string preservation, per-instance duplicate state, SQLite persistence, and restart behavior.
+Coverage includes selector extraction, relative URL resolution, pagination, incomplete-record metrics, polite/bounded settings, required-field and URL validation, URL canonicalization, in-memory and SQLite deduplication, JSONL schema enforcement, restart idempotency, deterministic snapshots, and preservation of the previous export when atomic replacement fails.
 
 ## Limits
 

@@ -98,6 +98,23 @@ class PostgresExportPipelineTests(unittest.TestCase):
         self.assertEqual(self.connection.commits, 2)  # schema + item
         self.assertIn(params[0], self.connection.committed_urls)
 
+    def test_least_privilege_mode_skips_schema_ddl(self):
+        connection = FakeConnection()
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=Mock(return_value=connection),
+            auto_create_table=False,
+        )
+        pipeline.open_spider(self.spider)
+        try:
+            self.assertFalse(any(query.startswith("CREATE TABLE") for query, _ in connection.queries))
+            pipeline.process_item(self.item, self.spider)
+            self.assertEqual(connection.commits, 1)
+            self.assertTrue(any(query.startswith("INSERT INTO scraped_products") for query, _ in connection.queries))
+        finally:
+            pipeline.close_spider(self.spider)
+        self.assertTrue(connection.closed)
+
     def test_duplicate_raises_dropitem_without_second_insert(self):
         self.pipeline.process_item(self.item, self.spider)
         with self.assertRaisesRegex(DropItem, "duplicate product URL"):

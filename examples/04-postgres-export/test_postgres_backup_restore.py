@@ -22,9 +22,11 @@ class PostgresBackupRestoreTests(unittest.TestCase):
         from psycopg import sql
         from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-        for executable in ("pg_dump", "pg_restore"):
-            if shutil.which(executable) is None:
-                self.fail(f"{executable} is required for the backup/restore smoke test")
+        versioned_client_dir = Path("/usr/lib/postgresql/15/bin")
+        pg_dump = str(versioned_client_dir / "pg_dump") if (versioned_client_dir / "pg_dump").is_file() else shutil.which("pg_dump")
+        pg_restore = str(versioned_client_dir / "pg_restore") if (versioned_client_dir / "pg_restore").is_file() else shutil.which("pg_restore")
+        if pg_dump is None or pg_restore is None:
+            self.fail("pg_dump and pg_restore are required for the backup/restore smoke test")
 
         settings = conninfo_to_dict(DSN)
         source_db = "scrapy_backup_src_" + uuid.uuid4().hex[:12]
@@ -109,7 +111,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 digest_path = Path(tmp) / "catalog.dump.sha256"
                 subprocess.run(
                     [
-                        "pg_dump", "--format=custom", "--no-owner", "--no-acl",
+                        pg_dump, "--format=custom", "--no-owner", "--no-acl",
                         f"--file={dump_path}", f"--dbname={source_db}",
                     ],
                     env=pg_env,
@@ -129,7 +131,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                     hashlib.sha256(dump_path.read_bytes()).hexdigest(),
                 )
                 subprocess.run(
-                    ["pg_restore", "--list", str(dump_path)],
+                    [pg_restore, "--list", str(dump_path)],
                     env=pg_env,
                     check=True,
                     capture_output=True,
@@ -138,7 +140,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 )
                 subprocess.run(
                     [
-                        "pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
+                        pg_restore, "--exit-on-error", "--no-owner", "--no-acl",
                         f"--dbname={target_db}", str(dump_path),
                     ],
                     env=pg_env,

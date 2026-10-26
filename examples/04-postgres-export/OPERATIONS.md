@@ -30,8 +30,8 @@ test ! -e "$backup"
 pg_dump --format=custom --no-owner --no-acl --file="$backup"
 test -s "$backup"
 pg_restore --list "$backup" >/dev/null
-sha256sum "$backup" > "$backup.sha256"
-sha256sum --check "$backup.sha256"
+(cd "$backup_dir" && sha256sum "$(basename "$backup")" > "$(basename "$backup").sha256")
+(cd "$backup_dir" && sha256sum --check "$(basename "$backup").sha256")
 ```
 
 Run this in an environment where libpq can obtain the approved connection details (for example, a protected service file or injected `PG*` settings). If the server is remote, configure TLS verification rather than disabling certificate checks.
@@ -51,7 +51,7 @@ set -eu
 : "${RESTORE_DATABASE:?Set RESTORE_DATABASE to a newly created empty database}"
 : "${BACKUP_FILE:?Set BACKUP_FILE to the selected dump}"
 test -s "$BACKUP_FILE"
-sha256sum --check "$BACKUP_FILE.sha256"
+(cd "$(dirname "$BACKUP_FILE")" && sha256sum --check "$(basename "$BACKUP_FILE").sha256")
 pg_restore --list "$BACKUP_FILE" >/dev/null
 pg_restore --exit-on-error --no-owner --no-acl \
   --dbname="$RESTORE_DATABASE" "$BACKUP_FILE"

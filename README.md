@@ -37,7 +37,7 @@ Data engineers who collect public web data into structured datasets.
 
 | # | Example | Status | What it demonstrates |
 |---|---------|--------|----------------------|
-| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; CI pending | CSS selectors, pagination, URL resolution, incomplete-record handling, and bounded polite settings; tests use offline HTML fixtures |
+| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; CI passed on PR #1 | CSS selectors, pagination, URL resolution, incomplete-record handling, and bounded polite settings; tests use offline HTML fixtures |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
 | 03 | `03-pipelines` | Planned | Item pipelines for cleaning and validation |
 | 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |

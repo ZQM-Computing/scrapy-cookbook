@@ -36,6 +36,39 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         with psycopg.connect(DSN) as connection:
             connection.execute("DROP TABLE IF EXISTS scraped_products")
 
+    def test_failed_insert_rolls_back_and_pipeline_can_continue(self):
+        import psycopg
+
+        # Force a database-side constraint violation after item validation so
+        # this exercises PostgreSQL transaction rollback, not DropItem checks.
+        with psycopg.connect(DSN) as connection:
+            connection.execute(
+                "ALTER TABLE scraped_products "
+                "ADD CONSTRAINT reject_forced_failure CHECK (title <> 'force-database-error')"
+            )
+
+        failed_item = {
+            **self.item,
+            "title": "force-database-error",
+            "url": "https://example.test/products/failed",
+        }
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            self.pipeline.process_item(failed_item, self.spider)
+
+        # A valid write immediately afterward proves rollback restored a usable
+        # transaction on the same connection.
+        valid_item = {
+            **self.item,
+            "url": "https://example.test/products/after-failure",
+        }
+        self.pipeline.process_item(valid_item, self.spider)
+
+        with psycopg.connect(DSN) as connection:
+            rows = connection.execute(
+                "SELECT url FROM scraped_products ORDER BY url"
+            ).fetchall()
+        self.assertEqual(rows, [("https://example.test/products/after-failure",)])
+
     def test_least_privilege_role_can_insert_without_schema_ddl(self):
         import psycopg
         from psycopg import sql

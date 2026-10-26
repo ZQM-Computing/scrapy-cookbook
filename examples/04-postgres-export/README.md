@@ -56,4 +56,10 @@ The unit tests use a deterministic fake connection and never open a network conn
 python -m unittest discover -s examples/04-postgres-export -p 'test_*.py' -v
 ```
 
-A passing fake-connection suite does not prove PostgreSQL server compatibility. Before production use, add a CI service-container integration test against the supported PostgreSQL version, validate migrations against empty and existing databases, and test TLS, permissions, reconnects, and backup/restore. No live database or crawl is run by this pattern.
+The GitHub Actions workflow runs both the fake-connection contract suite and a live integration test against an ephemeral PostgreSQL 15 service. The integration test verifies table bootstrap, URL canonicalization, persisted values, UTC timestamp handling, and duplicate idempotency. Run it locally only against a disposable test database by setting `SCRAPY_POSTGRES_DSN` and installing this pattern's requirements:
+
+```sh
+python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_integration.py' -v
+```
+
+The integration test drops and recreates `scraped_products`; **never point it at a database containing data you need**. CI service credentials are test-only. This coverage does not establish production TLS, least-privilege permissions, reconnect behavior, migration compatibility with pre-existing schemas, or backup/restore. No live crawl or production deployment is performed.

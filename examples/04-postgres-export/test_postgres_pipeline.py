@@ -46,6 +46,7 @@ class FakeConnection:
         self.fail_insert = False
         self.fail_create_table = False
         self.fail_rollback = False
+        self.fail_commit_after_persist = False
         self.commits = 0
         self.rollbacks = 0
         self.closed = False
@@ -57,6 +58,10 @@ class FakeConnection:
         self.committed_urls.update(self.pending_urls)
         self.pending_urls.clear()
         self.commits += 1
+        if self.fail_commit_after_persist:
+            # Simulate a lost commit acknowledgement: the server-side write
+            # may have committed even though the client receives an exception.
+            raise RuntimeError("simulated lost commit acknowledgement")
 
     def rollback(self):
         self.rollbacks += 1
@@ -166,6 +171,23 @@ class PostgresExportPipelineTests(unittest.TestCase):
             self.pipeline.process_item(self.item, self.spider)
         self.assertEqual(self.connection.rollbacks, 1)
         self.assertEqual(self.connection.committed_urls, set())
+
+    def test_commit_error_discards_connection_without_claiming_rollback(self):
+        self.connection.fail_commit_after_persist = True
+        with self.assertRaisesRegex(RuntimeError, "lost commit acknowledgement"):
+            self.pipeline.process_item(self.item, self.spider)
+
+        # The fake server persisted the row before the client saw the error.
+        # The pipeline must surface the error and discard the connection,
+        # not assume rollback undid the commit or retry automatically.
+        self.assertIn(
+            "https://books.example/catalogue/sample.html",
+            self.connection.committed_urls,
+        )
+        self.assertTrue(self.connection.closed)
+        self.assertIsNone(self.pipeline.connection)
+        with self.assertRaisesRegex(RuntimeError, "not open"):
+            self.pipeline.process_item(self.item, self.spider)
 
     def test_rollback_failure_preserves_insert_error_and_discards_connection(self):
         self.connection.fail_insert = True

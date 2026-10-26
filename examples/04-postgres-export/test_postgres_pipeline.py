@@ -22,6 +22,8 @@ class FakeCursor:
         normalized = " ".join(query.split())
         self.connection.queries.append((normalized, params))
         if normalized.startswith("CREATE TABLE"):
+            if self.connection.fail_create_table:
+                raise RuntimeError("simulated schema creation failure")
             return
         if self.connection.fail_insert:
             raise RuntimeError("simulated database failure")
@@ -42,6 +44,8 @@ class FakeConnection:
         self.committed_urls = set()
         self.pending_urls = set()
         self.fail_insert = False
+        self.fail_create_table = False
+        self.fail_rollback = False
         self.commits = 0
         self.rollbacks = 0
         self.closed = False
@@ -55,8 +59,10 @@ class FakeConnection:
         self.commits += 1
 
     def rollback(self):
-        self.pending_urls.clear()
         self.rollbacks += 1
+        if self.fail_rollback:
+            raise RuntimeError("simulated rollback failure")
+        self.pending_urls.clear()
 
     def close(self):
         self.closed = True
@@ -127,6 +133,27 @@ class PostgresExportPipelineTests(unittest.TestCase):
             self.pipeline.process_item(self.item, self.spider)
         self.assertEqual(self.connection.rollbacks, 1)
         self.assertEqual(self.connection.committed_urls, set())
+
+    def test_rollback_failure_preserves_insert_error_and_discards_connection(self):
+        self.connection.fail_insert = True
+        self.connection.fail_rollback = True
+        with self.assertRaisesRegex(RuntimeError, "simulated database failure"):
+            self.pipeline.process_item(self.item, self.spider)
+        self.assertTrue(self.connection.closed)
+        self.assertIsNone(self.pipeline.connection)
+
+    def test_schema_failure_with_rollback_failure_still_closes_connection(self):
+        connection = FakeConnection()
+        connection.fail_create_table = True
+        connection.fail_rollback = True
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=Mock(return_value=connection),
+        )
+        with self.assertRaisesRegex(RuntimeError, "simulated schema creation failure"):
+            pipeline.open_spider(self.spider)
+        self.assertTrue(connection.closed)
+        self.assertIsNone(pipeline.connection)
 
     def test_invalid_record_is_rejected_before_database_write(self):
         before = len(self.connection.queries)

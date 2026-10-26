@@ -40,7 +40,7 @@ Data engineers who collect public web data into structured datasets.
 | 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline tests cover provenance, validation/deduplication, and summary output | CSS selectors, pagination, UTC provenance, schema/URL validation, per-run or persistent deduplication, crawl-quality summaries, and restart-safe JSONL export |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
 | 03 | `03-pipelines` | Partially covered by pattern 01 | Required-field/URL validation, in-memory duplicate filtering, and optional SQLite persistence across restarts |
-| 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |
+| 04 | [`04-postgres-export`](examples/04-postgres-export/README.md) | Implemented; fake-connection unit tests, live PostgreSQL integration not yet verified | Parameterized inserts, UTC validation, per-item transactions, URL idempotency, migration guidance, and secret handling |
 
 ## Quick start
 
@@ -73,13 +73,19 @@ scrapy-cookbook/
 │   ├── test_spider.py
 │   ├── test_sqlite_pipeline.py
 │   └── test_jsonl_export_pipeline.py
+├── examples/04-postgres-export/
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── 001_create_scraped_products.sql
+│   ├── postgres_pipeline.py
+│   └── test_postgres_pipeline.py
 ├── README.md
 └── LICENSE
 ```
 
 ## Roadmap
 
-- Next: add a dedicated Postgres export pattern (04), with supported-version policy, schema migrations, transaction boundaries, connection-secret handling, and integration-test strategy.
+- Next: add a PostgreSQL service-container integration job to verify schema creation, unique-key conflicts, rollback behavior, and migration compatibility against a real server.
 
 ## Contributing
 

@@ -15,7 +15,7 @@ A **Scrapy cookbook** for polite web scraping spiders, validation pipelines, and
 
 ## Repository role and status
 
-**Status:** Active, public — bounded spider, provenance enrichment, validation/deduplication pipelines, optional SQLite persistence, optional JSON crawl summary, and offline unit tests implemented. CI covers the configured offline tests; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
+**Status:** Active, public — bounded spider, provenance enrichment, validation/deduplication pipelines, optional SQLite persistence, optional JSON crawl summary, optional idempotent SQLite-backed JSONL export, and offline unit tests implemented. CI covers the configured offline tests; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
 
 **What this repository is:** Scrapy patterns — see the table below.
 
@@ -37,7 +37,7 @@ Data engineers who collect public web data into structured datasets.
 
 | # | Example | Status | What it demonstrates |
 |---|---------|--------|----------------------|
-| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline tests cover provenance, validation/deduplication, and summary output | CSS selectors, pagination, URL resolution, UTC extraction provenance, required-field/URL validation, per-run or optional SQLite deduplication, and machine-readable crawl-quality summaries |
+| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline tests cover provenance, validation/deduplication, and summary output | CSS selectors, pagination, UTC provenance, schema/URL validation, per-run or persistent deduplication, crawl-quality summaries, and restart-safe JSONL export |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
 | 03 | `03-pipelines` | Partially covered by pattern 01 | Required-field/URL validation, in-memory duplicate filtering, and optional SQLite persistence across restarts |
 | 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |
@@ -51,7 +51,7 @@ python -m pip install -r examples/01-first-spider/requirements.txt
 scrapy runspider examples/01-first-spider/spider.py -O products.json
 ```
 
-The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. By default, the enabled pipelines attach UTC extraction provenance and reject malformed/incomplete records and duplicates within a single run. SQLite deduplication and the JSON crawl-summary report are opt-in. Tests run against synthetic HTML/items and temporary SQLite databases without contacting the target site:
+The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. By default, the enabled pipelines attach UTC extraction provenance and reject malformed/incomplete records and duplicates within a single run. Persistent SQLite deduplication, JSON crawl summaries, and the SQLite-backed JSONL snapshot exporter are opt-in. The exporter uses a fixed allowlisted schema and preserves the previous snapshot if replacement fails. Tests run against synthetic HTML/items and temporary SQLite databases without contacting the target site:
 
 ```sh
 python -m unittest discover -s examples/01-first-spider -p 'test_*.py' -v

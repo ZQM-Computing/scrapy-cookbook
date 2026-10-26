@@ -36,6 +36,79 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         with psycopg.connect(DSN) as connection:
             connection.execute("DROP TABLE IF EXISTS scraped_products")
 
+    def test_least_privilege_role_can_insert_without_schema_ddl(self):
+        import psycopg
+        from psycopg import sql
+        from psycopg.conninfo import make_conninfo
+
+        role = "scrapy_crawler_test"
+        role_identifier = sql.Identifier(role)
+
+        def remove_test_role(admin):
+            # DROP ROLE refuses while grants remain. DROP OWNED revokes the
+            # test role's grants on the disposable database before removal.
+            exists = admin.execute(
+                "SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)
+            ).fetchone()
+            if exists:
+                admin.execute(sql.SQL("DROP OWNED BY {}").format(role_identifier))
+                admin.execute(sql.SQL("DROP ROLE {}").format(role_identifier))
+
+        # This test runs only against the explicitly configured disposable DB.
+        # Clean stale state first, and keep setup inside the try so a partial
+        # setup failure cannot leak a role into a reused test database.
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            remove_test_role(admin)
+
+        try:
+            with psycopg.connect(DSN, autocommit=True) as admin:
+                admin.execute(
+                    sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                        role_identifier, sql.Literal("crawler_test_password")
+                    )
+                )
+                admin.execute(
+                    sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+                        sql.Identifier(admin.info.dbname), role_identifier
+                    )
+                )
+                admin.execute(
+                    sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(role_identifier)
+                )
+                admin.execute(
+                    sql.SQL("REVOKE CREATE ON SCHEMA public FROM {}").format(role_identifier)
+                )
+                admin.execute(
+                    sql.SQL(
+                        "GRANT INSERT (url, title, price_text, source_url, extracted_at_utc, spider_name), "
+                        "SELECT (url) ON scraped_products TO {}"
+                    ).format(role_identifier)
+                )
+
+            crawler_dsn = make_conninfo(DSN, user=role, password="crawler_test_password")
+            with psycopg.connect(crawler_dsn, autocommit=True) as crawler_connection:
+                with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    crawler_connection.execute("CREATE TABLE should_not_be_created (id integer)")
+
+            least_privilege_pipeline = PostgresExportPipeline(
+                crawler_dsn, auto_create_table=False
+            )
+            least_privilege_pipeline.open_spider(self.spider)
+            try:
+                least_privilege_pipeline.process_item(self.item, self.spider)
+            finally:
+                least_privilege_pipeline.close_spider(self.spider)
+
+            with psycopg.connect(DSN) as admin:
+                row = admin.execute(
+                    "SELECT title FROM scraped_products WHERE url = %s",
+                    ("https://example.test/products/1",),
+                ).fetchone()
+            self.assertEqual(row, ("Integration test product",))
+        finally:
+            with psycopg.connect(DSN, autocommit=True) as admin:
+                remove_test_role(admin)
+
     def test_insert_persists_normalized_values_and_duplicate_is_idempotent(self):
         import psycopg
         self.pipeline.process_item(self.item, self.spider)

@@ -32,13 +32,14 @@ The default in-memory pipeline is lightweight and requires no database, but forg
 
 ```python
 "SCRAPY_DEDUPE_DB": "./var/catalog-dedupe.sqlite3",
+"PRODUCT_DEDUPE_IN_MEMORY": False,
 "ITEM_PIPELINES": {
     "pipeline.ProductValidationPipeline": 300,
     "sqlite_pipeline.SQLiteDeduplicationPipeline": 400,
 },
 ```
 
-The persistent pipeline is deliberately optional and is not enabled by default. Do not enable both duplicate filters simultaneously: the in-memory pipeline would drop duplicates before SQLite sees them, obscuring which layer performed the deduplication. To use SQLite, instead configure validation plus SQLite as shown above (omit `pipeline.ProductValidationPipeline`'s duplicate behavior only if you split validation and in-memory deduplication into separate components; this current combined class does both). For the current implementation, the simplest practical configuration is to disable the in-memory duplicate check via a separate validation-only class or change the pipeline to a validation-only mode before enabling SQLite. The SQLite pipeline still enforces uniqueness in its own database.
+The persistent pipeline is deliberately optional and is not enabled by default. Set `PRODUCT_DEDUPE_IN_MEMORY=False` so the validation pipeline continues validating fields and URLs without doing in-memory duplicate filtering; the SQLite pipeline then owns duplicate detection. Keep validation ordered before SQLite so malformed items are rejected before database writes.
 
 SQLite is appropriate for a single machine or a small sequential ingestion job, not a shared distributed crawler. It is not a multi-host coordination service, and concurrent writers may contend on file locks. Back up the database, define its retention policy, and treat the canonicalization key as a data contract. URL normalization here only lowercases scheme/host and strips fragments; it intentionally preserves path and query strings.
 

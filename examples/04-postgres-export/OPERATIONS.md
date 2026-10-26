@@ -91,8 +91,8 @@ The repository's GitHub Actions workflow runs `test_postgres_backup_restore.py` 
 Run it locally only against a disposable PostgreSQL server with permission to create and drop databases, and with `pg_dump` and `pg_restore` installed:
 
 ```sh
-SCRAPY_POSTGRES_DSN='postgresql://test_user:test_password@localhost:5432/scrapy_test' \\
-  python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v
+export SCRAPY_POSTGRES_DSN='postgresql://test_user:test_password@localhost:5432/scrapy_test'
+python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v
 ```
 
 Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test does not validate off-host backup storage, retention, production grants/roles, application secrets/configuration, or a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.

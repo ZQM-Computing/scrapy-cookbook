@@ -39,7 +39,7 @@ Data engineers who collect public web data into structured datasets.
 |---|---------|--------|----------------------|
 | 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline CI passed on PR #3 (including validation/deduplication tests) | CSS selectors, pagination, URL resolution, incomplete-record handling, polite bounded settings, required-field/URL validation, and per-run duplicate filtering |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
-| 03 | `03-pipelines` | Partially covered by pattern 01 | Item pipelines for field/URL validation and deterministic in-memory duplicate filtering |
+| 03 | `03-pipelines` | Partially covered by pattern 01 | Required-field/URL validation, in-memory duplicate filtering, and optional SQLite persistence across restarts |
 | 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |
 
 ## Quick start
@@ -51,7 +51,7 @@ python -m pip install -r examples/01-first-spider/requirements.txt
 scrapy runspider examples/01-first-spider/spider.py -O products.json
 ```
 
-The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. The enabled pipeline rejects malformed/incomplete records and duplicate product URLs within a single run. Duplicate state is not persistent or shared across crawler workers. Tests run against synthetic HTML/items and do not contact the target site:
+The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. By default, the enabled pipeline rejects malformed/incomplete records and duplicates within a single run. An optional standard-library SQLite pipeline demonstrates persistent URL deduplication across restarts on one host; it must be explicitly enabled and configured. Tests run against synthetic HTML/items and temporary SQLite databases without contacting the target site:
 
 ```sh
 python -m unittest discover -s examples/01-first-spider -p 'test_*.py' -v
@@ -66,16 +66,18 @@ scrapy-cookbook/
 │   ├── README.md
 │   ├── requirements.txt
 │   ├── pipeline.py
+│   ├── sqlite_pipeline.py
 │   ├── spider.py
 │   ├── test_pipeline.py
-│   └── test_spider.py
+│   ├── test_spider.py
+│   └── test_sqlite_pipeline.py
 ├── README.md
 └── LICENSE
 ```
 
 ## Roadmap
 
-- Next: make the validation/deduplication pattern reusable for larger crawls and document its limits (persistent keys, restart behavior, and distributed execution).
+- Next: separate validation, provenance enrichment, and storage concerns into reusable components, with metrics and clear failure behavior.
 - Then: demonstrate a database export only after defining schema, idempotency, and failure behavior (04).
 
 ## Contributing

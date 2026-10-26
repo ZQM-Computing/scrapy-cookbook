@@ -57,7 +57,7 @@ The unit tests use a deterministic fake connection and never open a network conn
 python -m unittest discover -s examples/04-postgres-export -p 'test_*.py' -v
 ```
 
-The GitHub Actions workflow runs both the fake-connection contract suite and a live integration test against an ephemeral PostgreSQL 15 service. The integration test verifies table bootstrap, URL canonicalization, persisted values, UTC timestamp handling, and duplicate idempotency. Run it locally only against a disposable test database by setting `SCRAPY_POSTGRES_DSN` and installing this pattern's requirements:
+The GitHub Actions workflow runs both the fake-connection contract suite and a live integration test against an ephemeral PostgreSQL 15 service. The integration tests verify table bootstrap, URL canonicalization, persisted values, UTC timestamp handling, duplicate idempotency, and a restricted crawler role that can insert records but cannot create schema objects. The least-privilege test provisions and removes a dedicated test role, so it must only run against a disposable test database. Run it locally only against a disposable test database by setting `SCRAPY_POSTGRES_DSN` and installing this pattern's requirements:
 
 ```sh
 python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_integration.py' -v

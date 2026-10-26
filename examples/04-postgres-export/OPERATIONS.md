@@ -86,7 +86,7 @@ Finally, start the application against the restored target only in a controlled 
 
 ## 4. Automated recovery smoke test
 
-The repository's GitHub Actions workflow runs `test_postgres_backup_restore.py` against the disposable PostgreSQL service. It creates isolated temporary source and target databases, inserts representative catalog records, creates a custom-format dump, checks the archive and SHA-256 digest, restores into the separate target, and compares all catalog columns plus the primary-key constraint and a representative index. The test drops its temporary databases afterward.
+The repository's GitHub Actions workflow runs `test_postgres_backup_restore.py` against the disposable PostgreSQL service. It creates isolated temporary source and target databases, inserts representative catalog records, creates a custom-format dump, checks the archive and SHA-256 digest, restores into the separate target, and compares all catalog columns plus the primary-key constraint and a representative index. Because the dump intentionally excludes owners and ACLs, the test then provisions a fresh least-privilege runtime role, verifies it can insert a catalog row but cannot create schema objects, and removes that role and the temporary databases afterward.
 
 Run it locally only against a disposable PostgreSQL server with permission to create and drop databases, and with `pg_dump` and `pg_restore` installed:
 
@@ -95,7 +95,7 @@ export SCRAPY_POSTGRES_DSN='postgresql://test_user:test_password@localhost:5432/
 python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v
 ```
 
-Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test does not validate off-host backup storage, retention, production grants/roles, application secrets/configuration, or a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
+Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test validates a sample post-restore least-privilege grant setup, but does not recover production roles or grants, validate off-host backup storage or retention, recover application secrets/configuration, or establish a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
 
 ## 5. Recovery limitations and operating policy
 

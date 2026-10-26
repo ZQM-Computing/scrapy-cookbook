@@ -7,6 +7,7 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import secrets
 import subprocess
 import tempfile
 import unittest
@@ -56,6 +57,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 pg_env[env_key] = settings[key]
 
         created_databases = []
+        runtime_role = None
         try:
             with psycopg.connect(admin_dsn, autocommit=True) as admin:
                 admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(source_db)))
@@ -190,8 +192,75 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                     "SELECT to_regclass('public.scraped_products_spider_name_idx')"
                 ).fetchone()[0]
                 self.assertEqual(index_exists, "scraped_products_spider_name_idx")
+
+                # Ownership and ACLs are deliberately excluded from the dump.
+                # Re-provision a least-privilege application role after restore
+                # and prove it can write catalog rows but cannot perform DDL.
+                runtime_role = "scrapy_restore_" + uuid.uuid4().hex[:10]
+                runtime_password = secrets.token_urlsafe(24)
+                with psycopg.connect(admin_dsn, autocommit=True) as admin:
+                    admin.execute(
+                        sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                            sql.Identifier(runtime_role), sql.Literal(runtime_password)
+                        )
+                    )
+                    admin.execute(
+                        sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+                            sql.Identifier(target_db), sql.Identifier(runtime_role)
+                        )
+                    )
+                with psycopg.connect(target_dsn, autocommit=True) as admin:
+                    admin.execute(
+                        sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(
+                            sql.Identifier(runtime_role)
+                        )
+                    )
+                    admin.execute(
+                        sql.SQL("GRANT SELECT, INSERT ON public.scraped_products TO {}").format(
+                            sql.Identifier(runtime_role)
+                        )
+                    )
+
+                runtime_dsn = make_conninfo(
+                    target_dsn, user=runtime_role, password=runtime_password
+                )
+                with psycopg.connect(runtime_dsn, autocommit=True) as runtime:
+                    runtime.execute(
+                        "INSERT INTO public.scraped_products "
+                        "(url, title, price_text, source_url, extracted_at_utc, spider_name) "
+                        "VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            "https://example.test/products/runtime-check",
+                            "Runtime role verification",
+                            "$1.00",
+                            "https://example.test/catalogue/",
+                            "2026-10-22T10:00:00Z",
+                            "restore-runtime-check",
+                        ),
+                    )
+                    with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                        runtime.execute("CREATE TABLE public.runtime_role_must_not_ddl (id integer)")
         finally:
+            # Remove the temporary role's object grants while its database
+            # still exists, then drop databases and the cluster-level role.
+            if runtime_role and target_db in created_databases:
+                try:
+                    with psycopg.connect(target_dsn, autocommit=True) as target_admin:
+                        target_admin.execute(
+                            sql.SQL("DROP OWNED BY {}").format(sql.Identifier(runtime_role))
+                        )
+                except Exception:
+                    pass
             with psycopg.connect(admin_dsn, autocommit=True) as admin:
+                # Database-level privileges must be revoked before the target
+                # database is dropped; otherwise PostgreSQL raises
+                # InvalidCatalogName and masks the test's actual outcome.
+                if runtime_role and target_db in created_databases:
+                    admin.execute(
+                        sql.SQL("REVOKE CONNECT ON DATABASE {} FROM {}").format(
+                            sql.Identifier(target_db), sql.Identifier(runtime_role)
+                        )
+                    )
                 for database in reversed(created_databases):
                     admin.execute(
                         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
@@ -199,3 +268,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                         (database,),
                     )
                     admin.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
+                if runtime_role:
+                    admin.execute(
+                        sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(runtime_role))
+                    )

@@ -21,7 +21,19 @@ scrapy runspider examples/01-first-spider/spider.py -O products.json
 
 The spider respects `robots.txt`, identifies itself with a descriptive user agent, waits at least one second between requests to the same domain, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. A page cap is a safety bound, not permission to scrape a target. Verify the site's current terms and robots policy before each real use.
 
-Output contains `title`, `price_text` (kept as source text rather than incorrectly assuming a currency format), `url`, and `source_url`. The enabled `ProductValidationPipeline` rejects missing/blank required fields, non-HTTP(S) or malformed URLs, embedded URL credentials, and duplicate product URLs. URL deduplication lowercases scheme/host and removes fragments while preserving path and query parameters.
+Output contains `title`, `price_text` (kept as source text rather than incorrectly assuming a currency format), `url`, `source_url`, `extracted_at_utc`, and `spider_name`. The provenance pipeline adds a UTC extraction timestamp and spider identity without changing source fields. `ProductValidationPipeline` rejects missing/blank required fields, non-HTTP(S) or malformed URLs, embedded URL credentials, and duplicate product URLs. URL deduplication lowercases scheme/host and removes fragments while preserving path and query parameters.
+
+## Provenance and crawl-quality summary
+
+The example enables an optional summary extension. To write a machine-readable report, pass a path at runtime:
+
+```sh
+scrapy runspider examples/01-first-spider/spider.py \\
+  -s CRAWL_SUMMARY_PATH=./var/crawl-summary.json \\
+  -O products.json
+```
+
+The extension writes the JSON summary when the spider closes, using a temporary file and atomic replacement. It includes spider identity, UTC start/close timestamps, close reason, selected Scrapy stats (including response status and downloader exception counts when present), item-drop categories, pipeline/spider error counts by exception type, and scheduler-dropped request count. It does not store exception messages or scraped item contents in the summary. The report is an operational aid, not a complete audit log: extraction skips logged directly by the spider and failures that Scrapy does not expose through the connected signals may not appear as a dedicated category. Protect and retain the report according to your data-governance requirements.
 
 ## Optional persistent deduplication (SQLite)
 

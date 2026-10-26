@@ -21,7 +21,11 @@ class CatalogSpider(scrapy.Spider):
         "AUTOTHROTTLE_MAX_DELAY": 10.0,
         "CLOSESPIDER_PAGECOUNT": 5,
         "ITEM_PIPELINES": {
+            "provenance_pipeline.ProvenancePipeline": 100,
             "pipeline.ProductValidationPipeline": 300,
+        },
+        "EXTENSIONS": {
+            "crawl_summary.CrawlSummaryExtension": 500,
         },
     }
 

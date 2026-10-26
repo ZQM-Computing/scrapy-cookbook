@@ -37,7 +37,7 @@ Data engineers who collect public web data into structured datasets.
 
 | # | Example | Status | What it demonstrates |
 |---|---------|--------|----------------------|
-| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; CI verification pending for current pipeline branch | CSS selectors, pagination, URL resolution, incomplete-record handling, polite bounded settings, required-field/URL validation, and per-run duplicate filtering |
+| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline CI passed on PR #3 (including validation/deduplication tests) | CSS selectors, pagination, URL resolution, incomplete-record handling, polite bounded settings, required-field/URL validation, and per-run duplicate filtering |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
 | 03 | `03-pipelines` | Partially covered by pattern 01 | Item pipelines for field/URL validation and deterministic in-memory duplicate filtering |
 | 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |

@@ -3,7 +3,6 @@ import os
 import unittest
 from datetime import datetime, timezone
 
-import psycopg
 from scrapy.exceptions import DropItem
 
 from postgres_pipeline import PostgresExportPipeline
@@ -15,6 +14,7 @@ DSN = os.environ.get("SCRAPY_POSTGRES_DSN")
 @unittest.skipUnless(DSN, "set SCRAPY_POSTGRES_DSN to run live PostgreSQL integration tests")
 class PostgresExportIntegrationTests(unittest.TestCase):
     def setUp(self):
+        import psycopg
         # CI provides a disposable PostgreSQL service dedicated to this job.
         with psycopg.connect(DSN) as connection:
             connection.execute("DROP TABLE IF EXISTS scraped_products")
@@ -31,11 +31,13 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         }
 
     def tearDown(self):
+        import psycopg
         self.pipeline.close_spider(self.spider)
         with psycopg.connect(DSN) as connection:
             connection.execute("DROP TABLE IF EXISTS scraped_products")
 
     def test_insert_persists_normalized_values_and_duplicate_is_idempotent(self):
+        import psycopg
         self.pipeline.process_item(self.item, self.spider)
         with self.assertRaisesRegex(DropItem, "duplicate product URL"):
             self.pipeline.process_item(

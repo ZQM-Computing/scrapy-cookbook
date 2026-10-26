@@ -18,6 +18,7 @@ class CrawlSummaryExtension:
         self.stats = stats
         self.started_at_utc = None
         self.drop_reasons = Counter()
+        self.items_scraped_signal_count = 0
         self.pipeline_errors = Counter()
         self.spider_errors = Counter()
         self.dropped_requests = 0
@@ -29,6 +30,7 @@ class CrawlSummaryExtension:
             raise NotConfigured("Set CRAWL_SUMMARY_PATH to enable JSON crawl summaries")
         extension = cls(output_path, crawler.stats)
         crawler.signals.connect(extension.spider_opened, signal=signals.spider_opened)
+        crawler.signals.connect(extension.item_scraped, signal=signals.item_scraped)
         crawler.signals.connect(extension.item_dropped, signal=signals.item_dropped)
         crawler.signals.connect(extension.item_error, signal=signals.item_error)
         crawler.signals.connect(extension.spider_error, signal=signals.spider_error)
@@ -39,9 +41,18 @@ class CrawlSummaryExtension:
     def spider_opened(self, spider):
         self.started_at_utc = datetime.now(timezone.utc).isoformat()
 
+    def item_scraped(self, item, response, spider):
+        self.items_scraped_signal_count += 1
+
     def item_dropped(self, item, response, exception, spider):
-        message = str(exception).lower()
-        category = "duplicate" if "duplicate" in message else "validation_or_policy"
+        # Match the stable reason prefix emitted by this cookbook's pipelines.
+        # Avoid classifying unrelated messages just because they mention duplicates.
+        message = str(exception).strip().lower()
+        category = (
+            "duplicate"
+            if message.startswith("duplicate product url")
+            else "validation_or_policy"
+        )
         self.drop_reasons[category] += 1
 
     def item_error(self, item, response, spider, failure):
@@ -85,6 +96,7 @@ class CrawlSummaryExtension:
             "closed_at_utc": closed_at,
             "close_reason": reason,
             "stats": relevant_stats,
+            "items_scraped_signal_count": self.items_scraped_signal_count,
             "item_drop_categories": dict(sorted(self.drop_reasons.items())),
             "pipeline_errors_by_type": dict(sorted(self.pipeline_errors.items())),
             "spider_errors_by_type": dict(sorted(self.spider_errors.items())),

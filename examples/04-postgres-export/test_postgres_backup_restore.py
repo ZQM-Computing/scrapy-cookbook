@@ -261,5 +261,10 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                     admin.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
                 if runtime_role:
                     admin.execute(
+                        sql.SQL("REVOKE CONNECT ON DATABASE {} FROM {}").format(
+                            sql.Identifier(target_db), sql.Identifier(runtime_role)
+                        )
+                    )
+                    admin.execute(
                         sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(runtime_role))
                     )

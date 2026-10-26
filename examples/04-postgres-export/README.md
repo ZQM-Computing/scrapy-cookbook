@@ -44,15 +44,16 @@ Use a dedicated migration role to apply the versioned SQL migrations in controll
 
 - URL is the primary key. Canonicalization normalizes scheme/host casing and strips fragments while preserving path and query semantics.
 - Values are passed as SQL parameters; item values are never interpolated into SQL text.
-- Each item is one transaction. Successful inserts commit independently; an item failure rolls back and propagates to Scrapy.
+- Each item is one transaction. Successful inserts commit independently; a statement failure attempts rollback and propagates to Scrapy. If `commit()` raises, the commit outcome may be unknown (for example, the server committed but the acknowledgement was lost): the pipeline attempts cleanup, discards the connection, and propagates the original error. It does not automatically retry an uncertain commit.
 - `ON CONFLICT (url) DO NOTHING RETURNING url` makes repeated inserts idempotent. Duplicates are surfaced as `DropItem`, not counted as newly inserted records.
 - Required fields are validated, and `extracted_at_utc` must be ISO-8601 with an explicit UTC offset.
-- Existing rows are not updated on conflict. If refresh/upsert semantics are needed, define freshness ordering and update policy explicitly.
+- Existing rows are not updated on conflict. If Scrapy retries an item after an uncertain commit, the URL primary key and `ON CONFLICT DO NOTHING` prevent a second row, but the retry may be reported as a duplicate rather than a confirmed success. Reconcile the stored row before deciding whether to replay or mark the item complete.
+- The pipeline does not reconnect or automatically retry after a commit error; a new pipeline instance is required after the connection is discarded.
 - The table stores first-seen time separately from source extraction time.
 
 ## Tests and integration validation
 
-The unit tests use a deterministic fake connection and never open a network connection. They cover schema bootstrap, parameterized inserts, duplicate behavior, rollback on database failure, invalid records, and connection cleanup:
+The unit tests use a deterministic fake connection and never open a network connection. They cover schema bootstrap, parameterized inserts, duplicate behavior, rollback on statement failure, uncertain commit handling, invalid records, and connection cleanup:
 
 ```sh
 python -m unittest discover -s examples/04-postgres-export -p 'test_*.py' -v
@@ -64,4 +65,4 @@ The GitHub Actions workflow runs both the fake-connection contract suite and a l
 python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_integration.py' -v
 ```
 
-The integration test drops and recreates `scraped_products`; **never point it at a database containing data you need**. CI service credentials are test-only. This coverage does not establish production TLS, reconnect behavior, backup/restore, or compatibility with every possible legacy schema; the versioned migration test covers the specific documented pre-`first_seen_utc` schema. No live crawl or production deployment is performed.
+The integration test drops and recreates `scraped_products`; **never point it at a database containing data you need**. CI service credentials are test-only. This coverage does not establish production TLS, reconnect behavior, backup/restore, live network interruption behavior, or compatibility with every possible legacy schema; the versioned migration test covers the specific documented pre-`first_seen_utc` schema. No live crawl or production deployment is performed.

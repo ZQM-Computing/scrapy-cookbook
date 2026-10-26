@@ -43,30 +43,49 @@ class PostgresExportIntegrationTests(unittest.TestCase):
 
         role = "scrapy_crawler_test"
         role_identifier = sql.Identifier(role)
-        # This test runs only against the explicitly configured disposable DB.
-        with psycopg.connect(DSN, autocommit=True) as admin:
-            admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(role_identifier))
-            admin.execute(
-                sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
-                    role_identifier, sql.Literal("crawler_test_password")
-                )
-            )
-            admin.execute(
-                sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
-                    sql.Identifier(admin.info.dbname), role_identifier
-                )
-            )
-            admin.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(role_identifier))
-            admin.execute(sql.SQL("REVOKE CREATE ON SCHEMA public FROM {}").format(role_identifier))
-            admin.execute(
-                sql.SQL(
-                    "GRANT INSERT (url, title, price_text, source_url, extracted_at_utc, spider_name), "
-                    "SELECT (url) ON scraped_products TO {}"
-                ).format(role_identifier)
-            )
 
-        crawler_dsn = make_conninfo(DSN, user=role, password="crawler_test_password")
+        def remove_test_role(admin):
+            # DROP ROLE refuses while grants remain. DROP OWNED revokes the
+            # test role's grants on the disposable database before removal.
+            exists = admin.execute(
+                "SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)
+            ).fetchone()
+            if exists:
+                admin.execute(sql.SQL("DROP OWNED BY {}").format(role_identifier))
+                admin.execute(sql.SQL("DROP ROLE {}").format(role_identifier))
+
+        # This test runs only against the explicitly configured disposable DB.
+        # Clean stale state first, and keep setup inside the try so a partial
+        # setup failure cannot leak a role into a reused test database.
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            remove_test_role(admin)
+
         try:
+            with psycopg.connect(DSN, autocommit=True) as admin:
+                admin.execute(
+                    sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                        role_identifier, sql.Literal("crawler_test_password")
+                    )
+                )
+                admin.execute(
+                    sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+                        sql.Identifier(admin.info.dbname), role_identifier
+                    )
+                )
+                admin.execute(
+                    sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(role_identifier)
+                )
+                admin.execute(
+                    sql.SQL("REVOKE CREATE ON SCHEMA public FROM {}").format(role_identifier)
+                )
+                admin.execute(
+                    sql.SQL(
+                        "GRANT INSERT (url, title, price_text, source_url, extracted_at_utc, spider_name), "
+                        "SELECT (url) ON scraped_products TO {}"
+                    ).format(role_identifier)
+                )
+
+            crawler_dsn = make_conninfo(DSN, user=role, password="crawler_test_password")
             with psycopg.connect(crawler_dsn, autocommit=True) as crawler_connection:
                 with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     crawler_connection.execute("CREATE TABLE should_not_be_created (id integer)")
@@ -88,8 +107,7 @@ class PostgresExportIntegrationTests(unittest.TestCase):
             self.assertEqual(row, ("Integration test product",))
         finally:
             with psycopg.connect(DSN, autocommit=True) as admin:
-                from psycopg import sql
-                admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier("scrapy_crawler_test")))
+                remove_test_role(admin)
 
     def test_insert_persists_normalized_values_and_duplicate_is_idempotent(self):
         import psycopg

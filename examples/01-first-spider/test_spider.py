@@ -46,13 +46,17 @@ class CatalogSpiderTests(unittest.TestCase):
         """)
         self.assertEqual(list(self.spider.parse(response)), [])
 
-    def test_spider_has_polite_bounded_settings(self):
+    def test_spider_has_polite_bounded_settings_and_pipeline(self):
         settings = CatalogSpider.custom_settings
         self.assertTrue(settings["ROBOTSTXT_OBEY"])
         self.assertEqual(settings["DOWNLOAD_DELAY"], 1.0)
         self.assertEqual(settings["CONCURRENT_REQUESTS_PER_DOMAIN"], 1)
         self.assertTrue(settings["AUTOTHROTTLE_ENABLED"])
         self.assertEqual(settings["CLOSESPIDER_PAGECOUNT"], 5)
+        self.assertEqual(
+            settings["ITEM_PIPELINES"],
+            {"pipeline.ProductValidationPipeline": 300},
+        )
 
 
 if __name__ == "__main__":

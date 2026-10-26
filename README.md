@@ -15,7 +15,7 @@ A **Scrapy cookbook** for polite web scraping spiders, pipelines, and exports. P
 
 ## Repository role and status
 
-**Status:** Active, public — seeding. Pattern passes land in follow-up work from fleet-verified setups; the tables below list what is planned, not what is already written.
+**Status:** Active, public — first runnable spider and offline unit tests implemented. The first pattern is covered by CI; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
 
 **What this repository is:** Scrapy patterns — see the table below.
 
@@ -33,28 +33,48 @@ Data engineers who collect public web data into structured datasets.
 - Python 3.11+
 - A robots-respecting demo target for the first spider
 
-## Patterns (planned)
+## Patterns
 
-| # | Example | What it will demonstrate |
-|---|---------|--------------------------|
-| 01 | `01-first-spider` | A first spider: items, selectors, and pagination |
-| 02 | `02-robots-delay` | Robots compliance, delays, and polite crawling settings |
-| 03 | `03-pipelines` | Item pipelines for cleaning and validation |
-| 04 | `04-postgres-export` | Exporting items into Postgres for analysis |
+| # | Example | Status | What it demonstrates |
+|---|---------|--------|----------------------|
+| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; CI pending | CSS selectors, pagination, URL resolution, incomplete-record handling, and bounded polite settings; tests use offline HTML fixtures |
+| 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
+| 03 | `03-pipelines` | Planned | Item pipelines for cleaning and validation |
+| 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |
+
+## Quick start
+
+Requires Python 3.11 or newer. Install the pinned Scrapy dependency and run the example from the repository root:
+
+```sh
+python -m pip install -r examples/01-first-spider/requirements.txt
+scrapy runspider examples/01-first-spider/spider.py -O products.json
+```
+
+The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. Tests run against synthetic HTML and do not contact the target site:
+
+```sh
+python -m unittest discover -s examples/01-first-spider -p 'test_*.py' -v
+```
 
 ## Repository layout
 
 ```text
 scrapy-cookbook/
-├── examples/          # pattern passes, landing in follow-up work
+├── .github/workflows/examples.yml
+├── examples/01-first-spider/
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── spider.py
+│   └── test_spider.py
 ├── README.md
 └── LICENSE
 ```
 
 ## Roadmap
 
-- First pattern pass: the first two table rows
-- Second pass: the remaining rows, from fleet-verified setups
+- Next: add explicit pipeline validation and deterministic duplicate handling (03).
+- Then: demonstrate a database export only after defining schema, idempotency, and failure behavior (04).
 
 ## Contributing
 

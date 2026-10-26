@@ -18,7 +18,7 @@ class CatalogSpiderTests(unittest.TestCase):
         response = self.response("""
             <html><body>
               <article class="product_pod">
-                <h3><a href="../../../the-book_1/index.html" title="A Sample Book">A Sample Book</a></h3>
+                <h3><a href="../../the-book_1/index.html" title="A Sample Book">A Sample Book</a></h3>
                 <p class="price_color">£12.34</p>
               </article>
               <li class="next"><a href="page-2.html">next</a></li>

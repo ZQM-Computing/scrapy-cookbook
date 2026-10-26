@@ -20,6 +20,9 @@ class CatalogSpider(scrapy.Spider):
         "AUTOTHROTTLE_START_DELAY": 1.0,
         "AUTOTHROTTLE_MAX_DELAY": 10.0,
         "CLOSESPIDER_PAGECOUNT": 5,
+        "ITEM_PIPELINES": {
+            "pipeline.ProductValidationPipeline": 300,
+        },
     }
 
     def parse(self, response):

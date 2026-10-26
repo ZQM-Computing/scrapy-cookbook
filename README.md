@@ -67,18 +67,19 @@ scrapy-cookbook/
 │   ├── requirements.txt
 │   ├── pipeline.py
 │   ├── sqlite_pipeline.py
+│   ├── jsonl_export_pipeline.py
 │   ├── spider.py
 │   ├── test_pipeline.py
 │   ├── test_spider.py
-│   └── test_sqlite_pipeline.py
+│   ├── test_sqlite_pipeline.py
+│   └── test_jsonl_export_pipeline.py
 ├── README.md
 └── LICENSE
 ```
 
 ## Roadmap
 
-- Next: add a separate storage/export pattern with an explicit schema, idempotency, and failure behavior.
-- Then: demonstrate a database export only after defining schema, idempotency, and failure behavior (04).
+- Next: add a dedicated Postgres export pattern (04), with supported-version policy, schema migrations, transaction boundaries, connection-secret handling, and integration-test strategy.
 
 ## Contributing
 

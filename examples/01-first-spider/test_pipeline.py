@@ -71,6 +71,11 @@ class ProductValidationPipelineTests(unittest.TestCase):
             different_query,
         )
 
+    def test_duplicate_filter_can_be_disabled_for_persistent_pipeline(self):
+        pipeline = ProductValidationPipeline(deduplicate=False)
+        self.assertIs(pipeline.process_item(self.item, self.spider), self.item)
+        self.assertIs(pipeline.process_item(self.item, self.spider), self.item)
+
     def test_duplicate_state_is_instance_scoped(self):
         self.pipeline.process_item(self.item, self.spider)
         other_run = ProductValidationPipeline()

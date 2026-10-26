@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 from scrapy.http import HtmlResponse, Request
 
@@ -38,13 +39,16 @@ class CatalogSpiderTests(unittest.TestCase):
         self.assertEqual(item["source_url"], self.url)
         self.assertEqual(next_request.url, "https://books.toscrape.com/catalogue/category/books_1/page-2.html")
 
-    def test_skips_incomplete_product_records(self):
+    def test_skips_incomplete_product_records_and_increments_quality_stat(self):
         response = self.response("""
             <article class="product_pod">
               <h3><a href="/incomplete.html" title="No price">No price</a></h3>
             </article>
         """)
+        stats = Mock()
+        self.spider.crawler = Mock(stats=stats)
         self.assertEqual(list(self.spider.parse(response)), [])
+        stats.inc_value.assert_called_once_with("catalog/items_skipped/incomplete")
 
     def test_spider_has_polite_bounded_settings_and_pipeline(self):
         settings = CatalogSpider.custom_settings

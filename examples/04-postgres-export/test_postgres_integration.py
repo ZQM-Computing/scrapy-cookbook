@@ -66,6 +66,57 @@ class PostgresExportIntegrationTests(unittest.TestCase):
             ],
         )
 
+    def test_versioned_migration_preserves_legacy_rows_and_is_idempotent(self):
+        import psycopg
+
+        # Model an installation created by the original schema, before
+        # first_seen_utc was introduced. Preserve a real row across the upgrade.
+        with psycopg.connect(DSN) as connection:
+            connection.execute("DROP TABLE IF EXISTS scraped_products")
+            connection.execute("""
+                CREATE TABLE scraped_products (
+                    url TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    price_text TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    extracted_at_utc TIMESTAMPTZ NOT NULL,
+                    spider_name TEXT NOT NULL
+                )
+            """)
+            connection.execute(
+                "INSERT INTO scraped_products "
+                "(url, title, price_text, source_url, extracted_at_utc, spider_name) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (
+                    "https://example.test/products/legacy",
+                    "Legacy product",
+                    "$7.50",
+                    "https://example.test/products/",
+                    datetime(2025, 1, 2, 3, 4, tzinfo=timezone.utc),
+                    "legacy-spider",
+                ),
+            )
+
+        migration = Path(__file__).with_name("002_add_first_seen_utc.sql").read_text()
+        with psycopg.connect(DSN) as connection:
+            connection.execute(migration)
+            connection.execute(migration)
+            row = connection.execute(
+                "SELECT title, first_seen_utc FROM scraped_products "
+                "WHERE url = %s",
+                ("https://example.test/products/legacy",),
+            ).fetchone()
+            nullable = connection.execute(
+                "SELECT is_nullable FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scraped_products' "
+                "AND column_name = 'first_seen_utc'"
+            ).fetchone()
+
+        self.assertEqual(row[0], "Legacy product")
+        self.assertIsInstance(row[1], datetime)
+        self.assertEqual(row[1].utcoffset(), timezone.utc.utcoffset(row[1]))
+        self.assertEqual(nullable, ("NO",))
+
     def test_failed_insert_rolls_back_and_pipeline_can_continue(self):
         import psycopg
 

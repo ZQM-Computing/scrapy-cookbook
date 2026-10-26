@@ -38,19 +38,31 @@ class PostgresExportIntegrationTests(unittest.TestCase):
 
     def test_least_privilege_role_can_insert_without_schema_ddl(self):
         import psycopg
+        from psycopg import sql
         from psycopg.conninfo import make_conninfo
 
         role = "scrapy_crawler_test"
+        role_identifier = sql.Identifier(role)
         # This test runs only against the explicitly configured disposable DB.
         with psycopg.connect(DSN, autocommit=True) as admin:
-            admin.execute(f'DROP ROLE IF EXISTS {role}')
-            admin.execute(f'CREATE ROLE {role} LOGIN PASSWORD %s', ("crawler_test_password",))
-            admin.execute(f'GRANT CONNECT ON DATABASE {admin.info.dbname} TO {role}')
-            admin.execute(f'GRANT USAGE ON SCHEMA public TO {role}')
-            admin.execute(f'REVOKE CREATE ON SCHEMA public FROM {role}')
+            admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(role_identifier))
             admin.execute(
-                f'GRANT INSERT (url, title, price_text, source_url, extracted_at_utc, spider_name), '
-                f'SELECT (url) ON scraped_products TO {role}'
+                sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                    role_identifier, sql.Literal("crawler_test_password")
+                )
+            )
+            admin.execute(
+                sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+                    sql.Identifier(admin.info.dbname), role_identifier
+                )
+            )
+            admin.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(role_identifier))
+            admin.execute(sql.SQL("REVOKE CREATE ON SCHEMA public FROM {}").format(role_identifier))
+            admin.execute(
+                sql.SQL(
+                    "GRANT INSERT (url, title, price_text, source_url, extracted_at_utc, spider_name), "
+                    "SELECT (url) ON scraped_products TO {}"
+                ).format(role_identifier)
             )
 
         crawler_dsn = make_conninfo(DSN, user=role, password="crawler_test_password")
@@ -76,7 +88,8 @@ class PostgresExportIntegrationTests(unittest.TestCase):
             self.assertEqual(row, ("Integration test product",))
         finally:
             with psycopg.connect(DSN, autocommit=True) as admin:
-                admin.execute("DROP ROLE IF EXISTS scrapy_crawler_test")
+                from psycopg import sql
+                admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier("scrapy_crawler_test")))
 
     def test_insert_persists_normalized_values_and_duplicate_is_idempotent(self):
         import psycopg

@@ -55,7 +55,10 @@ class CatalogSpiderTests(unittest.TestCase):
         self.assertEqual(settings["CLOSESPIDER_PAGECOUNT"], 5)
         self.assertEqual(
             settings["ITEM_PIPELINES"],
-            {"pipeline.ProductValidationPipeline": 300},
+            {
+                "provenance_pipeline.ProvenancePipeline": 100,
+                "pipeline.ProductValidationPipeline": 300,
+            },
         )
 
 

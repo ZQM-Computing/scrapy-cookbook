@@ -92,6 +92,39 @@ class PostgresExportPipelineTests(unittest.TestCase):
     def tearDown(self):
         self.pipeline.close_spider(self.spider)
 
+    def test_connection_uses_bounded_timeout(self):
+        self.connector.assert_called_once_with(
+            "postgresql://example/test",
+            connect_timeout=10,
+        )
+
+    def test_custom_connection_timeout_is_passed_to_connector(self):
+        connection = FakeConnection()
+        connector = Mock(return_value=connection)
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=connector,
+            auto_create_table=False,
+            connect_timeout=3,
+        )
+        pipeline.open_spider(self.spider)
+        try:
+            connector.assert_called_once_with(
+                "postgresql://example/test",
+                connect_timeout=3,
+            )
+        finally:
+            pipeline.close_spider(self.spider)
+
+    def test_connection_timeout_must_be_positive_integer(self):
+        for value in (0, -1, 1.5, True, "10"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "POSTGRES_CONNECT_TIMEOUT"):
+                    PostgresExportPipeline(
+                        "postgresql://example/test",
+                        connect_timeout=value,
+                    )
+
     def test_bootstraps_schema_and_uses_parameterized_idempotent_insert(self):
         self.pipeline.process_item(self.item, self.spider)
         insert_query, params = self.connection.queries[-1]

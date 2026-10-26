@@ -51,7 +51,7 @@ python -m pip install -r examples/01-first-spider/requirements.txt
 scrapy runspider examples/01-first-spider/spider.py -O products.json
 ```
 
-The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. By default, the enabled pipeline rejects malformed/incomplete records and duplicates within a single run. An optional standard-library SQLite pipeline demonstrates persistent URL deduplication across restarts on one host; it must be explicitly enabled and configured. Tests run against synthetic HTML/items and temporary SQLite databases without contacting the target site:
+The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. By default, the enabled pipelines attach UTC extraction provenance and reject malformed/incomplete records and duplicates within a single run. SQLite deduplication and the JSON crawl-summary report are opt-in. Tests run against synthetic HTML/items and temporary SQLite databases without contacting the target site:
 
 ```sh
 python -m unittest discover -s examples/01-first-spider -p 'test_*.py' -v

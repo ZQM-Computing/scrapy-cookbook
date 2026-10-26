@@ -11,11 +11,11 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-A **Scrapy cookbook** for polite web scraping spiders, pipelines, and exports. Patterns are drawn from the ZQM fleet's Scrapy 2.19.0 installs and its demo spider (10 items, robots-obeying, 1s delay, identical on Node-3 and Node-4). Scrape only sources you are allowed to scrape, and respect robots.txt. It is intended for Data engineers who collect public web data into structured datasets. Validate each pattern against your own data, software versions, and operating environment before adopting it.
+A **Scrapy cookbook** for polite web scraping spiders, validation pipelines, and exports. The first example uses Scrapy 2.19.0 and Python 3.11+ against the educational Books to Scrape target. Scrape only sources you are allowed to scrape, and respect robots.txt. It is intended for data engineers who collect public web data into structured datasets. Validate each pattern against your own data, software versions, and operating environment before adopting it.
 
 ## Repository role and status
 
-**Status:** Active, public — first runnable spider and offline unit tests implemented. The first pattern is covered by CI; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
+**Status:** Active, public — first runnable spider, an enabled item validation/deduplication pipeline, and offline unit tests implemented. CI covers the configured offline tests; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
 
 **What this repository is:** Scrapy patterns — see the table below.
 
@@ -29,17 +29,17 @@ Data engineers who collect public web data into structured datasets.
 
 ## Prerequisites
 
-- Scrapy 2.19.0
 - Python 3.11+
+- Scrapy 2.19.0 (pinned in the first example)
 - A robots-respecting demo target for the first spider
 
 ## Patterns
 
 | # | Example | Status | What it demonstrates |
 |---|---------|--------|----------------------|
-| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; CI passed on PR #1 | CSS selectors, pagination, URL resolution, incomplete-record handling, and bounded polite settings; tests use offline HTML fixtures |
+| 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; CI verification pending for current pipeline branch | CSS selectors, pagination, URL resolution, incomplete-record handling, polite bounded settings, required-field/URL validation, and per-run duplicate filtering |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
-| 03 | `03-pipelines` | Planned | Item pipelines for cleaning and validation |
+| 03 | `03-pipelines` | Partially covered by pattern 01 | Item pipelines for field/URL validation and deterministic in-memory duplicate filtering |
 | 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |
 
 ## Quick start
@@ -51,7 +51,7 @@ python -m pip install -r examples/01-first-spider/requirements.txt
 scrapy runspider examples/01-first-spider/spider.py -O products.json
 ```
 
-The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. Tests run against synthetic HTML and do not contact the target site:
+The spider respects `robots.txt`, identifies itself, uses a one-second per-domain delay, limits per-domain concurrency to one, enables AutoThrottle, and stops after five pages. The enabled pipeline rejects malformed/incomplete records and duplicate product URLs within a single run. Duplicate state is not persistent or shared across crawler workers. Tests run against synthetic HTML/items and do not contact the target site:
 
 ```sh
 python -m unittest discover -s examples/01-first-spider -p 'test_*.py' -v
@@ -65,7 +65,9 @@ scrapy-cookbook/
 ├── examples/01-first-spider/
 │   ├── README.md
 │   ├── requirements.txt
+│   ├── pipeline.py
 │   ├── spider.py
+│   ├── test_pipeline.py
 │   └── test_spider.py
 ├── README.md
 └── LICENSE
@@ -73,7 +75,7 @@ scrapy-cookbook/
 
 ## Roadmap
 
-- Next: add explicit pipeline validation and deterministic duplicate handling (03).
+- Next: make the validation/deduplication pattern reusable for larger crawls and document its limits (persistent keys, restart behavior, and distributed execution).
 - Then: demonstrate a database export only after defining schema, idempotency, and failure behavior (04).
 
 ## Contributing

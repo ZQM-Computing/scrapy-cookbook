@@ -36,6 +36,48 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         with psycopg.connect(DSN) as connection:
             connection.execute("DROP TABLE IF EXISTS scraped_products")
 
+    def test_least_privilege_role_can_insert_without_schema_ddl(self):
+        import psycopg
+        from psycopg.conninfo import make_conninfo
+
+        role = "scrapy_crawler_test"
+        # This test runs only against the explicitly configured disposable DB.
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            admin.execute(f'DROP ROLE IF EXISTS {role}')
+            admin.execute(f'CREATE ROLE {role} LOGIN PASSWORD %s', ("crawler_test_password",))
+            admin.execute(f'GRANT CONNECT ON DATABASE {admin.info.dbname} TO {role}')
+            admin.execute(f'GRANT USAGE ON SCHEMA public TO {role}')
+            admin.execute(f'REVOKE CREATE ON SCHEMA public FROM {role}')
+            admin.execute(
+                f'GRANT INSERT (url, title, price_text, source_url, extracted_at_utc, spider_name), '
+                f'SELECT (url) ON scraped_products TO {role}'
+            )
+
+        crawler_dsn = make_conninfo(DSN, user=role, password="crawler_test_password")
+        try:
+            with psycopg.connect(crawler_dsn, autocommit=True) as crawler_connection:
+                with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    crawler_connection.execute("CREATE TABLE should_not_be_created (id integer)")
+
+            least_privilege_pipeline = PostgresExportPipeline(
+                crawler_dsn, auto_create_table=False
+            )
+            least_privilege_pipeline.open_spider(self.spider)
+            try:
+                least_privilege_pipeline.process_item(self.item, self.spider)
+            finally:
+                least_privilege_pipeline.close_spider(self.spider)
+
+            with psycopg.connect(DSN) as admin:
+                row = admin.execute(
+                    "SELECT title FROM scraped_products WHERE url = %s",
+                    ("https://example.test/products/1",),
+                ).fetchone()
+            self.assertEqual(row, ("Integration test product",))
+        finally:
+            with psycopg.connect(DSN, autocommit=True) as admin:
+                admin.execute("DROP ROLE IF EXISTS scrapy_crawler_test")
+
     def test_insert_persists_normalized_values_and_duplicate_is_idempotent(self):
         import psycopg
         self.pipeline.process_item(self.item, self.spider)

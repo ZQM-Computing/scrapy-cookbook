@@ -1,5 +1,6 @@
 """Live PostgreSQL integration tests; run only with an explicit test DSN."""
 import os
+from pathlib import Path
 import unittest
 from datetime import datetime, timezone
 
@@ -35,6 +36,35 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         self.pipeline.close_spider(self.spider)
         with psycopg.connect(DSN) as connection:
             connection.execute("DROP TABLE IF EXISTS scraped_products")
+
+    def test_initial_migration_creates_schema_and_is_idempotent(self):
+        import psycopg
+
+        migration = Path(__file__).with_name("001_create_scraped_products.sql").read_text()
+        with psycopg.connect(DSN) as connection:
+            # Exercise the checked-in migration from a clean state, then apply
+            # it again to verify its documented initial-migration idempotency.
+            connection.execute("DROP TABLE IF EXISTS scraped_products")
+            connection.execute(migration)
+            connection.execute(migration)
+            columns = connection.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scraped_products' "
+                "ORDER BY ordinal_position"
+            ).fetchall()
+
+        self.assertEqual(
+            columns,
+            [
+                ("url",),
+                ("title",),
+                ("price_text",),
+                ("source_url",),
+                ("extracted_at_utc",),
+                ("spider_name",),
+                ("first_seen_utc",),
+            ],
+        )
 
     def test_failed_insert_rolls_back_and_pipeline_can_continue(self):
         import psycopg

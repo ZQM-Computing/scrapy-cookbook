@@ -75,6 +75,7 @@ class CrawlSummaryExtension:
             "spider_exceptions/",
             "item_dropped_reasons_count/",
             "log_count/",
+            "catalog/items_skipped/",
         )
         exact = {
             "elapsed_time_seconds", "finish_reason", "finish_time",

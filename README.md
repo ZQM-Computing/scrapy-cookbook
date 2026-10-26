@@ -86,7 +86,7 @@ scrapy-cookbook/
 
 ## PostgreSQL operations
 
-The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md). It provides commands and verification steps; no production backup or restore has been executed or certified by this repository.
+The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md) and an automated disposable-database restore smoke test in CI. The test verifies restored records and selected schema objects; it does not certify production backup storage, retention, or recovery objectives.
 
 ## Roadmap
 

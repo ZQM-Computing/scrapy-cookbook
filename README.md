@@ -40,7 +40,7 @@ Data engineers who collect public web data into structured datasets.
 | 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline tests cover provenance, validation/deduplication, and summary output | CSS selectors, pagination, UTC provenance, schema/URL validation, per-run or persistent deduplication, crawl-quality summaries, and restart-safe JSONL export |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
 | 03 | `03-pipelines` | Partially covered by pattern 01 | Required-field/URL validation, in-memory duplicate filtering, and optional SQLite persistence across restarts |
-| 04 | [`04-postgres-export`](examples/04-postgres-export/README.md) | Implemented; fake-connection unit tests, live PostgreSQL integration not yet verified | Parameterized inserts, UTC validation, per-item transactions, URL idempotency, migration guidance, and secret handling |
+| 04 | [`04-postgres-export`](examples/04-postgres-export/README.md) | Implemented; fake-connection unit tests and PostgreSQL 15 service-container integration tests | Parameterized inserts, UTC validation, per-item transactions, URL idempotency, migration guidance, and secret handling |
 
 ## Quick start
 
@@ -85,7 +85,7 @@ scrapy-cookbook/
 
 ## Roadmap
 
-- Next: add a PostgreSQL service-container integration job to verify schema creation, unique-key conflicts, rollback behavior, and migration compatibility against a real server.
+- Next: add PostgreSQL integration coverage for transaction rollback after a failed write and migration compatibility against a pre-existing schema. Current service-container coverage verifies bootstrap, canonicalized persistence, duplicate idempotency, and restricted-role insertion; rollback-failure handling is covered by fake-connection unit tests.
 
 ## Contributing
 

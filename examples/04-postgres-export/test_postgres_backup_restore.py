@@ -252,6 +252,15 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 except Exception:
                     pass
             with psycopg.connect(admin_dsn, autocommit=True) as admin:
+                # Database-level privileges must be revoked before the target
+                # database is dropped; otherwise PostgreSQL raises
+                # InvalidCatalogName and masks the test's actual outcome.
+                if runtime_role and target_db in created_databases:
+                    admin.execute(
+                        sql.SQL("REVOKE CONNECT ON DATABASE {} FROM {}").format(
+                            sql.Identifier(target_db), sql.Identifier(runtime_role)
+                        )
+                    )
                 for database in reversed(created_databases):
                     admin.execute(
                         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
@@ -260,11 +269,6 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                     )
                     admin.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
                 if runtime_role:
-                    admin.execute(
-                        sql.SQL("REVOKE CONNECT ON DATABASE {} FROM {}").format(
-                            sql.Identifier(target_db), sql.Identifier(runtime_role)
-                        )
-                    )
                     admin.execute(
                         sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(runtime_role))
                     )

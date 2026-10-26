@@ -15,7 +15,7 @@ A **Scrapy cookbook** for polite web scraping spiders, validation pipelines, and
 
 ## Repository role and status
 
-**Status:** Active, public — first runnable spider, an enabled item validation/deduplication pipeline, and offline unit tests implemented. CI covers the configured offline tests; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
+**Status:** Active, public — bounded spider, provenance enrichment, validation/deduplication pipelines, optional SQLite persistence, optional JSON crawl summary, and offline unit tests implemented. CI covers the configured offline tests; live target compatibility, long-running crawl behavior, and downstream production ingestion remain unverified.
 
 **What this repository is:** Scrapy patterns — see the table below.
 

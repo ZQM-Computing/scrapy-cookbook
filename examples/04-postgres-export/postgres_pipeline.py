@@ -10,12 +10,15 @@ from scrapy.exceptions import DropItem
 class PostgresExportPipeline:
     """Insert catalog records with per-item transactions and URL idempotency."""
 
-    def __init__(self, dsn, connect_factory=None, auto_create_table=True):
+    def __init__(self, dsn, connect_factory=None, auto_create_table=True, connect_timeout=10):
         if not isinstance(dsn, str) or not dsn.strip():
             raise ValueError("SCRAPY_POSTGRES_DSN must be configured")
+        if isinstance(connect_timeout, bool) or not isinstance(connect_timeout, int) or connect_timeout < 1:
+            raise ValueError("POSTGRES_CONNECT_TIMEOUT must be a positive integer number of seconds")
         self.dsn = dsn
         self.connect_factory = connect_factory
         self.auto_create_table = auto_create_table
+        self.connect_timeout = connect_timeout
         self.connection = None
 
     @classmethod
@@ -23,7 +26,11 @@ class PostgresExportPipeline:
         dsn = crawler.settings.get("SCRAPY_POSTGRES_DSN") or os.environ.get("SCRAPY_POSTGRES_DSN")
         if not dsn:
             raise ValueError("Set SCRAPY_POSTGRES_DSN in Scrapy settings or the environment")
-        return cls(dsn, auto_create_table=crawler.settings.getbool("POSTGRES_AUTO_CREATE_TABLE", True))
+        return cls(
+            dsn,
+            auto_create_table=crawler.settings.getbool("POSTGRES_AUTO_CREATE_TABLE", True),
+            connect_timeout=crawler.settings.getint("POSTGRES_CONNECT_TIMEOUT", 10),
+        )
 
     def open_spider(self, spider):
         connect = self.connect_factory
@@ -33,7 +40,9 @@ class PostgresExportPipeline:
             except ImportError as exc:
                 raise RuntimeError("PostgreSQL export requires psycopg 3; install examples/04-postgres-export/requirements.txt") from exc
             connect = psycopg.connect
-        self.connection = connect(self.dsn)
+        # Bound startup waits when the database host is unreachable. Psycopg
+        # accepts connect_timeout as a connection parameter in seconds.
+        self.connection = connect(self.dsn, connect_timeout=self.connect_timeout)
         if self.auto_create_table:
             try:
                 with self.connection.cursor() as cursor:

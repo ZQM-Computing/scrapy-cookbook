@@ -15,7 +15,7 @@ Install dependencies:
 python -m pip install -r examples/04-postgres-export/requirements.txt
 ```
 
-Set `SCRAPY_POSTGRES_DSN` in the process environment or Scrapy settings. Prefer a secret manager or deployment environment injection; do not commit DSNs, passwords, certificates, or production credentials. Use TLS with certificate verification for remote databases and a least-privilege role.
+Set `SCRAPY_POSTGRES_DSN` in the process environment or Scrapy settings. Prefer a secret manager or deployment environment injection; do not commit DSNs, passwords, certificates, or production credentials. Connection establishment is bounded to 10 seconds by default; configure `POSTGRES_CONNECT_TIMEOUT` as a positive integer number of seconds when a different startup limit is appropriate. Use TLS with certificate verification for remote databases and a least-privilege role. For example, set `sslmode=verify-full` in the DSN and configure the trusted root certificate through `sslrootcert` or your deployment's libpq-compatible environment.
 
 ## Configure the spider
 
@@ -34,7 +34,8 @@ The example spider imports `pipeline.py` from its own directory. Run the example
 Ensure `postgres_pipeline.py` is importable by the Scrapy process. Configure the DSN through the runtime environment, for example:
 
 ```sh
-export SCRAPY_POSTGRES_DSN='postgresql://crawler:REDACTED@localhost:5432/catalog'
+export SCRAPY_POSTGRES_DSN='postgresql://crawler:REDACTED@db.example.net:5432/catalog?sslmode=verify-full&sslrootcert=/run/secrets/postgres-ca.pem'
+export POSTGRES_CONNECT_TIMEOUT=10
 ```
 
 Use a dedicated migration role to apply the versioned SQL migrations in controlled environments. `001_create_scraped_products.sql` establishes the initial schema but does **not** upgrade an existing table whose columns or constraints differ. `002_add_first_seen_utc.sql` demonstrates a tested upgrade for installations missing `first_seen_utc`: it preserves existing rows, adds the column as non-null with a timestamp default, and is safe to apply repeatedly. For future schema changes, inspect the live schema and add a new versioned migration rather than assuming `CREATE TABLE IF NOT EXISTS` upgrades existing objects. For a quick demo, `POSTGRES_AUTO_CREATE_TABLE` defaults to `True` and the pipeline runs compatible `CREATE TABLE IF NOT EXISTS` bootstrap DDL. For production or any least-privilege runtime, apply the SQL migration separately and set `POSTGRES_AUTO_CREATE_TABLE = False` in Scrapy settings. This disables all schema DDL in the crawler process so the runtime role can be limited to the required table privileges. Keep schema changes in an explicit migration workflow.

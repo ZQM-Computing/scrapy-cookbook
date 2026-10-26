@@ -51,6 +51,10 @@ Use a dedicated migration role to apply the versioned SQL migrations in controll
 - The pipeline does not reconnect or automatically retry after a commit error; a new pipeline instance is required after the connection is discarded.
 - The table stores first-seen time separately from source extraction time.
 
+## Backup and restore
+
+See [OPERATIONS.md](OPERATIONS.md) for a full-database `pg_dump`/`pg_restore` runbook, checksum verification, isolated restore steps, and post-restore validation queries. The runbook is documented guidance only; a deployment is not backup-ready until operators have successfully rehearsed restoration and recorded evidence against its RPO/RTO.
+
 ## Tests and integration validation
 
 The unit tests use a deterministic fake connection and never open a network connection. They cover schema bootstrap, parameterized inserts, duplicate behavior, rollback on statement failure, uncertain commit handling, invalid records, and connection cleanup:

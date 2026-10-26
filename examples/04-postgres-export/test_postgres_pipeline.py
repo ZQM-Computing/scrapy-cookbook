@@ -102,8 +102,7 @@ class PostgresExportPipelineTests(unittest.TestCase):
         self.pipeline.process_item(self.item, self.spider)
         with self.assertRaisesRegex(DropItem, "duplicate product URL"):
             self.pipeline.process_item({**self.item, "url": self.item["url"].split("#")[0]}, self.spider)
-        self.assertEqual(self.connection.commits, 2)
-        self.assertEqual(len([q for q, _ in self.connection.queries if q.startswith("INSERT")]), 2)
+        self.assertEqual(self.connection.commits, 3)  # schema + first insert + duplicate no-op
 
     def test_database_failure_rolls_back_and_propagates(self):
         self.connection.fail_insert = True

@@ -47,3 +47,36 @@ jobs:
         run: python -m pip install -r examples/01-first-spider/requirements.txt
       - name: Run PostgreSQL pipeline contract tests
         run: python -m unittest discover -s examples/04-postgres-export -p 'test_*.py' -v
+
+  postgres-integration:
+    name: PostgreSQL 15 integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: scrapy_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d scrapy_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      SCRAPY_POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/scrapy_test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: examples/04-postgres-export/requirements.txt
+      - name: Install PostgreSQL example dependencies
+        run: python -m pip install -r examples/04-postgres-export/requirements.txt
+      - name: Run live PostgreSQL integration tests
+        run: python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_integration.py' -v

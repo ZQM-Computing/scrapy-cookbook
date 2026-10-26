@@ -112,6 +112,7 @@ class PostgresExportPipeline:
         if self.connection is None:
             raise RuntimeError("PostgresExportPipeline is not open")
         record = self._record(item)
+        commit_started = False
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute("""
@@ -125,6 +126,7 @@ class PostgresExportPipeline:
                     record["source_url"], record["extracted_at_utc"], record["spider_name"],
                 ))
                 inserted = cursor.fetchone()
+            commit_started = True
             self.connection.commit()
         except Exception:
             try:
@@ -133,6 +135,12 @@ class PostgresExportPipeline:
                 # A failed rollback leaves transaction state unknown. Discard
                 # the connection and preserve the original database exception.
                 self._close_connection()
+            else:
+                if commit_started:
+                    # A commit error can mean the server committed but its
+                    # acknowledgement was lost. Never reuse this connection;
+                    # do not retry automatically because commit outcome is unknown.
+                    self._close_connection()
             raise
         if inserted is None:
             raise DropItem(f"duplicate product URL already stored: {record['url']}")

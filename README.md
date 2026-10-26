@@ -85,7 +85,7 @@ scrapy-cookbook/
 
 ## Roadmap
 
-- PostgreSQL service-container coverage now includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. Remaining gaps include migration coverage for other schema histories, production TLS, backup/restore, and reconnect behavior.
+- PostgreSQL service-container coverage includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. The pipeline now discards its connection after a commit error because the transaction outcome can be uncertain, and does not retry automatically. Remaining gaps include backup/restore validation, live network-interruption testing, and broader legacy-schema coverage.
 
 ## Contributing
 

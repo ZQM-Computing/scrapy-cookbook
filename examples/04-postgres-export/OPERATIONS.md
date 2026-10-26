@@ -84,7 +84,20 @@ Compare the row count and time ranges with a trusted source captured near the ba
 
 Finally, start the application against the restored target only in a controlled test, using a least-privilege runtime role with schema auto-creation disabled. Confirm a known read and a controlled insert, then clean up the disposable target under the normal change-control process.
 
-## 4. Recovery limitations and operating policy
+## 4. Automated recovery smoke test
+
+The repository's GitHub Actions workflow runs `test_postgres_backup_restore.py` against the disposable PostgreSQL service. It creates isolated temporary source and target databases, inserts representative catalog records, creates a custom-format dump, checks the archive and SHA-256 digest, restores into the separate target, and compares all catalog columns plus the primary-key constraint and a representative index. The test drops its temporary databases afterward.
+
+Run it locally only against a disposable PostgreSQL server with permission to create and drop databases, and with `pg_dump` and `pg_restore` installed:
+
+```sh
+SCRAPY_POSTGRES_DSN='postgresql://test_user:test_password@localhost:5432/scrapy_test' \\
+  python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v
+```
+
+Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test does not validate off-host backup storage, retention, production grants/roles, application secrets/configuration, or a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
+
+## 5. Recovery limitations and operating policy
 
 - Define and approve the recovery-point objective (RPO), recovery-time objective (RTO), retention schedule, encryption, off-host/off-account storage, and restore-test cadence for the actual deployment.
 - Keep schema migrations, database dumps, credentials, and application configuration under separate controls. A database dump does not replace configuration and secret recovery.

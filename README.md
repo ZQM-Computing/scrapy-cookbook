@@ -85,7 +85,7 @@ scrapy-cookbook/
 
 ## Roadmap
 
-- Next: add PostgreSQL integration coverage for transaction rollback after a failed write and migration compatibility against a pre-existing schema. Current service-container coverage verifies bootstrap, canonicalized persistence, duplicate idempotency, and restricted-role insertion; rollback-failure handling is covered by fake-connection unit tests.
+- PostgreSQL service-container coverage now includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. Remaining gaps include migration coverage for other schema histories, production TLS, backup/restore, and reconnect behavior.
 
 ## Contributing
 

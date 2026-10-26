@@ -85,4 +85,4 @@ jobs:
       - name: Run live PostgreSQL integration tests
         run: python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_integration.py' -v
       - name: Run PostgreSQL backup and restore smoke test
-        run: python -m unittest examples/04-postgres-export/test_postgres_backup_restore.py -v
+        run: python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v

@@ -43,7 +43,7 @@ class BackupManifestTests(unittest.TestCase):
             backup = root / "catalog.dump"
             manifest = root / "catalog.dump.sha256"
             backup.write_bytes(b"representative backup archive bytes")
-            manifest.write_text(f"{sha256_file(backup)}  {backup.name}\\n", encoding="ascii")
+            manifest.write_text(f"{sha256_file(backup)}  {backup.name}\n", encoding="ascii")
             self.assertTrue(manifest_matches(backup, manifest))
 
             corrupted_dir = root / "corrupted"
@@ -55,7 +55,7 @@ class BackupManifestTests(unittest.TestCase):
 
             wrong_name_manifest = root / "wrong-name.sha256"
             wrong_name_manifest.write_text(
-                f"{sha256_file(backup)}  another.dump\\n", encoding="ascii"
+                f"{sha256_file(backup)}  another.dump\n", encoding="ascii"
             )
             self.assertFalse(manifest_matches(backup, wrong_name_manifest))
 
@@ -170,7 +170,7 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 self.assertGreater(dump_path.stat().st_size, 0)
 
                 digest_path.write_text(
-                    f"{sha256_file(dump_path)}  {dump_path.name}\\n", encoding="ascii"
+                    f"{sha256_file(dump_path)}  {dump_path.name}\n", encoding="ascii"
                 )
                 self.assertTrue(manifest_matches(dump_path, digest_path))
                 # A trusted manifest detects accidental corruption; a sidecar

@@ -46,7 +46,9 @@ class BackupManifestTests(unittest.TestCase):
             manifest.write_text(f"{sha256_file(backup)}  {backup.name}\\n", encoding="ascii")
             self.assertTrue(manifest_matches(backup, manifest))
 
-            corrupted = root / "corrupted.dump"
+            corrupted_dir = root / "corrupted"
+            corrupted_dir.mkdir()
+            corrupted = corrupted_dir / backup.name
             original = backup.read_bytes()
             corrupted.write_bytes(original[:-1] + bytes([original[-1] ^ 0x01]))
             self.assertFalse(manifest_matches(corrupted, manifest))
@@ -173,7 +175,9 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 self.assertTrue(manifest_matches(dump_path, digest_path))
                 # A trusted manifest detects accidental corruption; a sidecar
                 # alone does not protect against both files being replaced.
-                corrupted_path = Path(tmp) / "catalog-corrupted.dump"
+                corrupted_dir = Path(tmp) / "corrupted"
+                corrupted_dir.mkdir()
+                corrupted_path = corrupted_dir / dump_path.name
                 original_bytes = dump_path.read_bytes()
                 corrupted_path.write_bytes(
                     original_bytes[:-1] + bytes([original_bytes[-1] ^ 0x01])

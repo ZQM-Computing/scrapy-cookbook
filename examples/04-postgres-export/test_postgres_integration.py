@@ -117,6 +117,60 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         self.assertEqual(row[1].utcoffset(), timezone.utc.utcoffset(row[1]))
         self.assertEqual(nullable, ("NO",))
 
+    def test_versioned_migration_repairs_nullable_first_seen_column(self):
+        import psycopg
+
+        # A partially/manual-upgraded schema may already have the column but
+        # leave it nullable and without a default. IF NOT EXISTS alone would
+        # silently preserve that incompatible contract.
+        with psycopg.connect(DSN) as connection:
+            connection.execute("DROP TABLE IF EXISTS scraped_products")
+            connection.execute("""
+                CREATE TABLE scraped_products (
+                    url TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    price_text TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    extracted_at_utc TIMESTAMPTZ NOT NULL,
+                    spider_name TEXT NOT NULL,
+                    first_seen_utc TIMESTAMPTZ NULL
+                )
+            """)
+            connection.execute(
+                "INSERT INTO scraped_products "
+                "(url, title, price_text, source_url, extracted_at_utc, spider_name, first_seen_utc) "
+                "VALUES (%s, %s, %s, %s, %s, %s, NULL)",
+                (
+                    "https://example.test/products/partial-migration",
+                    "Partial migration row",
+                    "$3.00",
+                    "https://example.test/products/",
+                    datetime(2025, 1, 2, 3, 4, tzinfo=timezone.utc),
+                    "migration-test",
+                ),
+            )
+
+        migration = Path(__file__).with_name("002_add_first_seen_utc.sql").read_text()
+        with psycopg.connect(DSN) as connection:
+            connection.execute(migration)
+            connection.execute(migration)
+            row = connection.execute(
+                "SELECT first_seen_utc FROM scraped_products WHERE url = %s",
+                ("https://example.test/products/partial-migration",),
+            ).fetchone()
+            metadata = connection.execute(
+                "SELECT is_nullable, column_default, data_type "
+                "FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scraped_products' "
+                "AND column_name = 'first_seen_utc'"
+            ).fetchone()
+
+        self.assertIsInstance(row[0], datetime)
+        self.assertEqual(row[0].utcoffset(), timezone.utc.utcoffset(row[0]))
+        self.assertEqual(metadata[0], "NO")
+        self.assertIn("CURRENT_TIMESTAMP", metadata[1])
+        self.assertEqual(metadata[2], "timestamp with time zone")
+
     def test_failed_insert_rolls_back_and_pipeline_can_continue(self):
         import psycopg
 

@@ -46,6 +46,7 @@ class FakeConnection:
         self.fail_insert = False
         self.fail_create_table = False
         self.fail_rollback = False
+        self.fail_close = False
         self.fail_commit_after_persist = False
         self.commits = 0
         self.rollbacks = 0
@@ -71,6 +72,8 @@ class FakeConnection:
 
     def close(self):
         self.closed = True
+        if self.fail_close:
+            raise RuntimeError("simulated connection close failure")
 
 
 class FakeSpider:
@@ -220,6 +223,21 @@ class PostgresExportPipelineTests(unittest.TestCase):
         self.pipeline.close_spider(self.spider)
         self.assertTrue(self.connection.closed)
         self.assertIsNone(self.pipeline.connection)
+
+    def test_close_spider_preserves_rollback_error_if_connection_close_also_fails(self):
+        connection = FakeConnection()
+        connection.fail_rollback = True
+        connection.fail_close = True
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=Mock(return_value=connection),
+            auto_create_table=False,
+        )
+        pipeline.open_spider(self.spider)
+        with self.assertRaisesRegex(RuntimeError, "simulated rollback failure"):
+            pipeline.close_spider(self.spider)
+        self.assertTrue(connection.closed)
+        self.assertIsNone(pipeline.connection)
 
     def test_missing_dsn_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "SCRAPY_POSTGRES_DSN"):

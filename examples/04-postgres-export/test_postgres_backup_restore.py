@@ -16,6 +16,50 @@ import uuid
 DSN = os.environ.get("SCRAPY_POSTGRES_DSN")
 
 
+def sha256_file(path):
+    """Return the SHA-256 digest of a file's bytes."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def manifest_matches(path, manifest_path):
+    """Check a GNU sha256sum-style manifest entry against the named file."""
+    fields = Path(manifest_path).read_text(encoding="ascii").split()
+    if len(fields) != 2 or fields[1] != Path(path).name:
+        return False
+    expected = fields[0]
+    if len(expected) != 64 or any(char not in "0123456789abcdefABCDEF" for char in expected):
+        return False
+    return expected.lower() == sha256_file(path)
+
+
+class BackupManifestTests(unittest.TestCase):
+    def test_manifest_accepts_original_and_rejects_corruption_or_wrong_filename(self):
+        with tempfile.TemporaryDirectory(prefix="scrapy-manifest-test-") as tmp:
+            root = Path(tmp)
+            backup = root / "catalog.dump"
+            manifest = root / "catalog.dump.sha256"
+            backup.write_bytes(b"representative backup archive bytes")
+            manifest.write_text(f"{sha256_file(backup)}  {backup.name}\n", encoding="ascii")
+            self.assertTrue(manifest_matches(backup, manifest))
+
+            corrupted_dir = root / "corrupted"
+            corrupted_dir.mkdir()
+            corrupted = corrupted_dir / backup.name
+            original = backup.read_bytes()
+            corrupted.write_bytes(original[:-1] + bytes([original[-1] ^ 0x01]))
+            self.assertFalse(manifest_matches(corrupted, manifest))
+
+            wrong_name_manifest = root / "wrong-name.sha256"
+            wrong_name_manifest.write_text(
+                f"{sha256_file(backup)}  another.dump\n", encoding="ascii"
+            )
+            self.assertFalse(manifest_matches(backup, wrong_name_manifest))
+
+
 @unittest.skipUnless(DSN, "set SCRAPY_POSTGRES_DSN to a disposable PostgreSQL test database")
 class PostgresBackupRestoreTests(unittest.TestCase):
     def test_custom_dump_restores_data_schema_constraints_and_indexes(self):
@@ -125,13 +169,20 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 self.assertTrue(dump_path.is_file())
                 self.assertGreater(dump_path.stat().st_size, 0)
 
-                digest = hashlib.sha256(dump_path.read_bytes()).hexdigest()
-                digest_path.write_text(f"{digest}  {dump_path.name}\n", encoding="ascii")
-                recorded_digest = digest_path.read_text(encoding="ascii").split()[0]
-                self.assertEqual(
-                    recorded_digest,
-                    hashlib.sha256(dump_path.read_bytes()).hexdigest(),
+                digest_path.write_text(
+                    f"{sha256_file(dump_path)}  {dump_path.name}\n", encoding="ascii"
                 )
+                self.assertTrue(manifest_matches(dump_path, digest_path))
+                # A trusted manifest detects accidental corruption; a sidecar
+                # alone does not protect against both files being replaced.
+                corrupted_dir = Path(tmp) / "corrupted"
+                corrupted_dir.mkdir()
+                corrupted_path = corrupted_dir / dump_path.name
+                original_bytes = dump_path.read_bytes()
+                corrupted_path.write_bytes(
+                    original_bytes[:-1] + bytes([original_bytes[-1] ^ 0x01])
+                )
+                self.assertFalse(manifest_matches(corrupted_path, digest_path))
                 subprocess.run(
                     [pg_restore, "--list", str(dump_path)],
                     env=pg_env,

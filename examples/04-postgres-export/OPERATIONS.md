@@ -36,7 +36,7 @@ pg_restore --list "$backup" >/dev/null
 
 Run this in an environment where libpq can obtain the approved connection details (for example, a protected service file or injected `PG*` settings). If the server is remote, configure TLS verification rather than disabling certificate checks.
 
-Record the backup timestamp, server/database identity, PostgreSQL client/server versions, file size, checksum, and operator or job identity in the protected operations log. Store the dump and checksum separately from the database host, with encryption at rest and retention/access controls appropriate to the data.
+Record the backup timestamp, server/database identity, PostgreSQL client/server versions, file size, checksum, and operator or job identity in the protected operations log. Store the dump off-host and keep the checksum manifest in a separately controlled location or integrity-protected operations system; a sidecar stored beside the dump is convenient for accidental-corruption checks but is not independent evidence if both files can be replaced together. Apply encryption at rest and retention/access controls appropriate to the data.
 
 A successful `pg_dump` and archive listing prove that a dump was created and can be read as an archive; they do not prove that it can be restored or that the backup meets a recovery-point objective.
 

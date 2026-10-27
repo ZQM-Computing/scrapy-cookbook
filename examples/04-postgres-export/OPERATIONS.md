@@ -75,15 +75,20 @@ For the example migration, inspect the pre-migration state:
 
 ```sql
 SELECT count(*) AS product_rows FROM public.scraped_products;
-SELECT
-    count(*) FILTER (WHERE first_seen_utc IS NULL) AS null_first_seen_rows,
-    count(*) AS total_rows
-FROM public.scraped_products;
 SELECT column_name, data_type, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'scraped_products'
   AND column_name = 'first_seen_utc';
+```
+
+If the metadata query shows that `first_seen_utc` already exists, also inspect any incomplete backfill:
+
+```sql
+SELECT
+    count(*) FILTER (WHERE first_seen_utc IS NULL) AS null_first_seen_rows,
+    count(*) AS total_rows
+FROM public.scraped_products;
 ```
 
 Apply the reviewed migration as one transaction, stopping on the first SQL error:

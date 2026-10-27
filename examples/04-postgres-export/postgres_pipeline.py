@@ -161,5 +161,14 @@ class PostgresExportPipeline:
         if connection is not None:
             try:
                 connection.rollback()
-            finally:
+            except Exception:
+                # Rollback is the primary shutdown failure. Attempt to close
+                # the connection, but never let a secondary close error mask it.
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+                raise
+            else:
+                # With no earlier failure, surface a close error to the caller.
                 connection.close()

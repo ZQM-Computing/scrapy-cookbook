@@ -90,7 +90,7 @@ The optional PostgreSQL pattern includes a [backup and restore runbook](examples
 
 ## Roadmap
 
-- PostgreSQL service-container coverage includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. The pipeline now discards its connection after a commit error because the transaction outcome can be uncertain, and does not retry automatically. Remaining gaps include backup/restore validation, live network-interruption testing, and broader legacy-schema coverage.
+- PostgreSQL service-container coverage includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. The pipeline now discards its connection after a commit error because the transaction outcome can be uncertain, and does not retry automatically. Automated backup/restore smoke coverage and post-restore least-privilege checks are implemented. Remaining gaps include live network-interruption testing, broader legacy-schema coverage, and deployment-specific recovery evidence for configuration, secrets, and external dependencies.
 
 ## Contributing
 

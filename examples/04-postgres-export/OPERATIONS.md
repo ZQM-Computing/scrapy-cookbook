@@ -59,7 +59,65 @@ pg_restore --exit-on-error --no-owner --no-acl \
 
 The `RESTORE_DATABASE` must already exist, be empty, and be isolated from production writes. The command intentionally omits `--clean` and does not drop objects in an existing database. If the restore fails, preserve the logs, discard or recreate the disposable target through the approved database-administration process, and diagnose before retrying.
 
-## 3. Verify restored data
+## 3. Apply a versioned schema migration
+
+Treat a schema migration as a controlled change, separate from application deployment. The checked-in `002_add_first_seen_utc.sql` is a specific example for an older `scraped_products` schema; it is not a general-purpose schema reconciler.
+
+Before applying a migration to a real environment:
+
+1. Confirm the target host, database, and schema with an approved read-only connection. Do not use the integration-test DSN.
+2. Review the exact migration against the live schema and the expected application version. The initial migration (`001_create_scraped_products.sql`) creates a table but does not upgrade an existing table.
+3. Take a fresh backup using Section 1 and verify its archive and checksum. For a critical database, verify that a restore has recently succeeded into a separate target.
+4. Test the migration against a representative staging copy. Estimate table size, execution time, lock impact, and application compatibility; schedule an appropriate change window.
+5. Capture baseline row counts and the state of the target column before changing anything.
+
+For the example migration, inspect the pre-migration state:
+
+```sql
+SELECT count(*) AS product_rows FROM public.scraped_products;
+SELECT
+    count(*) FILTER (WHERE first_seen_utc IS NULL) AS null_first_seen_rows,
+    count(*) AS total_rows
+FROM public.scraped_products;
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'scraped_products'
+  AND column_name = 'first_seen_utc';
+```
+
+Apply the reviewed migration as one transaction, stopping on the first SQL error:
+
+```sh
+set -eu
+: "${PGDATABASE:?Set PGDATABASE to the approved target database}"
+: "${PGHOST:?Set PGHOST}"
+: "${PGUSER:?Set PGUSER}"
+psql --no-psqlrc --set ON_ERROR_STOP=1 --single-transaction \
+  --file="examples/04-postgres-export/002_add_first_seen_utc.sql"
+```
+
+Run this from the repository root, with approved connection settings supplied through the environment or a protected PostgreSQL service file. Use a dedicated migration identity; do not grant schema-altering privileges to the crawler's runtime role. The migration updates every existing row whose `first_seen_utc` is NULL and then enforces `NOT NULL`; on a large table this can scan/update many rows and hold locks. Measure on staging before selecting a production window.
+
+Verify the postconditions and compare the row count with the captured baseline:
+
+```sql
+SELECT count(*) AS product_rows FROM public.scraped_products;
+SELECT count(*) AS null_first_seen_rows
+FROM public.scraped_products
+WHERE first_seen_utc IS NULL;
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'scraped_products'
+  AND column_name = 'first_seen_utc';
+```
+
+Expected for this migration: row count is unchanged; no rows have a NULL `first_seen_utc`; the column is `timestamp with time zone`, is not nullable, and has a `CURRENT_TIMESTAMP` default. Record the migration filename and checksum, target identity, start/end times, operator/change reference, before/after row counts, verification results, and any errors in the approved change record.
+
+If the transaction fails, preserve the error and logs, verify that the transaction rolled back, and investigate before retrying. Do not continue with application deployment until the schema postconditions pass. A successful migration test in CI is not evidence that a production migration was run or that it fits a particular production table's size and lock budget.
+
+## 4. Verify restored data
 
 Connect to the restored database and run:
 
@@ -84,7 +142,7 @@ Compare the row count and time ranges with a trusted source captured near the ba
 
 Finally, start the application against the restored target only in a controlled test, using a least-privilege runtime role with schema auto-creation disabled. Confirm a known read and a controlled insert, then clean up the disposable target under the normal change-control process.
 
-## 4. Automated recovery smoke test
+## 5. Automated recovery smoke test
 
 The repository's GitHub Actions workflow runs `test_postgres_backup_restore.py` against the disposable PostgreSQL service. It creates isolated temporary source and target databases, inserts representative catalog records, creates a custom-format dump, checks the archive and SHA-256 digest, restores into the separate target, and compares all catalog columns plus the primary-key constraint and a representative index. Because the dump intentionally excludes owners and ACLs, the test then provisions a fresh least-privilege runtime role, verifies it cannot create schema objects, and exercises the actual `PostgresExportPipeline` against the restored target with schema auto-creation disabled. It checks a canonicalized insert, confirms a duplicate URL is surfaced as `DropItem`, verifies the persisted row, and removes the role and temporary databases afterward.
 
@@ -97,11 +155,11 @@ python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_bac
 
 Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test validates a sample post-restore least-privilege grant setup. Migration integration tests also force a backfill failure and verify transaction rollback leaves the legacy schema/row intact before a successful retry. These tests do not recover production roles or grants, validate off-host backup storage or retention, recover application secrets/configuration, or establish a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
 
-## 5. Application configuration and dependency recovery
+## 6. Application configuration and dependency recovery
 
 Database restoration is only one part of service recovery. Follow the [application configuration and secret recovery guide](../../docs/APPLICATION-CONFIGURATION-RECOVERY.md) to inventory non-secret configuration, recover approved secret references without exposing values, validate DNS/routing/TLS/authentication/authorization in order, and record application smoke-test evidence. Do not treat a database-only restore as proof that the complete service can recover.
 
-## 5. Recovery limitations and operating policy
+## 7. Recovery limitations and operating policy
 
 - Define and approve the recovery-point objective (RPO), recovery-time objective (RTO), retention schedule, encryption, off-host/off-account storage, and restore-test cadence for the actual deployment.
 - Keep schema migrations, database dumps, credentials, and application configuration under separate controls. A database dump does not replace configuration and secret recovery.

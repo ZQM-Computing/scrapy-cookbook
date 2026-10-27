@@ -226,5 +226,37 @@ class PostgresExportPipelineTests(unittest.TestCase):
             PostgresExportPipeline("")
 
 
+    def test_connection_startup_failure_propagates_without_attaching_connection(self):
+        error = TimeoutError("simulated connection startup timeout")
+        connector = Mock(side_effect=error)
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=connector,
+            auto_create_table=False,
+            connect_timeout=2,
+        )
+        with self.assertRaisesRegex(TimeoutError, "startup timeout"):
+            pipeline.open_spider(self.spider)
+        connector.assert_called_once_with(
+            "postgresql://example/test",
+            connect_timeout=2,
+        )
+        self.assertIsNone(pipeline.connection)
+
+    def test_close_spider_closes_connection_even_when_shutdown_rollback_fails(self):
+        connection = FakeConnection()
+        connection.fail_rollback = True
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=Mock(return_value=connection),
+            auto_create_table=False,
+        )
+        pipeline.open_spider(self.spider)
+        with self.assertRaisesRegex(RuntimeError, "simulated rollback failure"):
+            pipeline.close_spider(self.spider)
+        self.assertTrue(connection.closed)
+        self.assertIsNone(pipeline.connection)
+
+
 if __name__ == "__main__":
     unittest.main()

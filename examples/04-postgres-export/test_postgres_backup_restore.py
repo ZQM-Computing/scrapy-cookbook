@@ -275,22 +275,57 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                 runtime_dsn = make_conninfo(
                     target_dsn, user=runtime_role, password=runtime_password
                 )
+                from scrapy.exceptions import DropItem
+                from postgres_pipeline import PostgresExportPipeline
+
                 with psycopg.connect(runtime_dsn, autocommit=True) as runtime:
-                    runtime.execute(
-                        "INSERT INTO public.scraped_products "
-                        "(url, title, price_text, source_url, extracted_at_utc, spider_name) "
-                        "VALUES (%s, %s, %s, %s, %s, %s)",
-                        (
-                            "https://example.test/products/runtime-check",
-                            "Runtime role verification",
-                            "$1.00",
-                            "https://example.test/catalogue/",
-                            "2026-10-22T10:00:00Z",
-                            "restore-runtime-check",
-                        ),
-                    )
                     with self.assertRaises(psycopg.errors.InsufficientPrivilege):
-                        runtime.execute("CREATE TABLE public.runtime_role_must_not_ddl (id integer)")
+                        runtime.execute(
+                            "CREATE TABLE public.runtime_role_must_not_ddl (id integer)"
+                        )
+
+                # Exercise the real application pipeline, not only a raw SQL
+                # insert. Auto-DDL stays disabled to match least-privilege
+                # deployments where migrations are applied separately.
+                pipeline = PostgresExportPipeline(
+                    runtime_dsn, auto_create_table=False
+                )
+                spider = type(
+                    "RestoreSmokeSpider", (), {"name": "restore-runtime-check"}
+                )()
+                item = {
+                    "url": "HTTPS://Example.Test/products/runtime-check#fragment",
+                    "title": "Runtime role verification",
+                    "price_text": "$1.00",
+                    "source_url": "https://example.test/catalogue/",
+                    "extracted_at_utc": "2026-10-22T10:00:00Z",
+                    "spider_name": spider.name,
+                }
+                pipeline.open_spider(spider)
+                try:
+                    self.assertIs(pipeline.process_item(item, spider), item)
+                    with self.assertRaisesRegex(DropItem, "duplicate product URL"):
+                        pipeline.process_item(
+                            {**item, "url": "https://example.test/products/runtime-check"},
+                            spider,
+                        )
+                finally:
+                    pipeline.close_spider(spider)
+
+                with psycopg.connect(target_dsn) as restored:
+                    runtime_row = restored.execute(
+                        "SELECT url, title, spider_name FROM public.scraped_products "
+                        "WHERE url = %s",
+                        ("https://example.test/products/runtime-check",),
+                    ).fetchone()
+                self.assertEqual(
+                    runtime_row,
+                    (
+                        "https://example.test/products/runtime-check",
+                        "Runtime role verification",
+                        "restore-runtime-check",
+                    ),
+                )
         finally:
             # Remove the temporary role's object grants while its database
             # still exists, then drop databases and the cluster-level role.

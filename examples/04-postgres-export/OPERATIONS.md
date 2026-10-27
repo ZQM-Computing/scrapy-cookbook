@@ -155,6 +155,7 @@ Run it locally only against a disposable PostgreSQL server with permission to cr
 
 ```sh
 export SCRAPY_POSTGRES_DSN='postgresql://test_user:test_password@localhost:5432/scrapy_test'
+export SCRAPY_POSTGRES_ALLOW_DESTRUCTIVE_TESTS=1
 python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v
 ```
 

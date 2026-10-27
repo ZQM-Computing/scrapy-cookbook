@@ -95,7 +95,7 @@ export SCRAPY_POSTGRES_DSN='postgresql://test_user:test_password@localhost:5432/
 python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_backup_restore.py' -v
 ```
 
-Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test validates a sample post-restore least-privilege grant setup, but does not recover production roles or grants, validate off-host backup storage or retention, recover application secrets/configuration, or establish a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
+Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test validates a sample post-restore least-privilege grant setup. Migration integration tests also force a backfill failure and verify transaction rollback leaves the legacy schema/row intact before a successful retry. These tests do not recover production roles or grants, validate off-host backup storage or retention, recover application secrets/configuration, or establish a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
 
 ## 5. Application configuration and dependency recovery
 

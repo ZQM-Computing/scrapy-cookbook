@@ -344,11 +344,11 @@ class PostgresExportIntegrationTests(unittest.TestCase):
             )
             connection.execute("""
                 CREATE FUNCTION reject_first_seen_backfill() RETURNS trigger
-                LANGUAGE plpgsql AS $
+                LANGUAGE plpgsql AS $$
                 BEGIN
                     RAISE EXCEPTION 'simulated temporary backfill failure';
                 END;
-                $
+                $$
             """)
             connection.execute("""
                 CREATE TRIGGER reject_first_seen_backfill

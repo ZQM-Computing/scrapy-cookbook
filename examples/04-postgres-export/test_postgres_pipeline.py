@@ -239,6 +239,33 @@ class PostgresExportPipelineTests(unittest.TestCase):
         self.assertTrue(connection.closed)
         self.assertIsNone(pipeline.connection)
 
+    def test_insert_error_is_preserved_when_rollback_and_close_fail(self):
+        self.connection.fail_insert = True
+        self.connection.fail_rollback = True
+        self.connection.fail_close = True
+
+        with self.assertRaisesRegex(RuntimeError, "simulated database failure"):
+            self.pipeline.process_item(self.item, self.spider)
+
+        self.assertTrue(self.connection.closed)
+        self.assertIsNone(self.pipeline.connection)
+
+    def test_schema_error_is_preserved_when_rollback_and_close_fail(self):
+        connection = FakeConnection()
+        connection.fail_create_table = True
+        connection.fail_rollback = True
+        connection.fail_close = True
+        pipeline = PostgresExportPipeline(
+            "postgresql://example/test",
+            connect_factory=Mock(return_value=connection),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "simulated schema creation failure"):
+            pipeline.open_spider(self.spider)
+
+        self.assertTrue(connection.closed)
+        self.assertIsNone(pipeline.connection)
+
     def test_missing_dsn_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "SCRAPY_POSTGRES_DSN"):
             PostgresExportPipeline("")

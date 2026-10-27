@@ -57,7 +57,7 @@ See [OPERATIONS.md](OPERATIONS.md) for a full-database `pg_dump`/`pg_restore` ru
 
 ## Tests and integration validation
 
-The unit tests use a deterministic fake connection and never open a network connection. They cover schema bootstrap, parameterized inserts, duplicate behavior, rollback on statement failure, uncertain commit handling, invalid records, and connection cleanup:
+The unit tests use a deterministic fake connection and never open a network connection. They cover schema bootstrap, parameterized inserts, duplicate behavior, rollback on statement failure, uncertain commit handling, bounded connection startup failure, shutdown cleanup when rollback fails, invalid records, and connection cleanup:
 
 ```sh
 python -m unittest discover -s examples/04-postgres-export -p 'test_*.py' -v

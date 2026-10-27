@@ -307,5 +307,99 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         self.assertEqual(row[5], "integration-test")
 
 
+    def test_failed_versioned_migration_rolls_back_and_can_be_retried(self):
+        import psycopg
+
+        # Model a transient migration failure after the migration has begun
+        # modifying the schema: a trigger rejects the backfill UPDATE. The
+        # whole migration must roll back, leaving the pre-migration schema and
+        # row intact so an operator can correct the cause and retry safely.
+        legacy_url = "https://example.test/products/migration-retry"
+        with psycopg.connect(DSN) as connection:
+            connection.execute("DROP TABLE IF EXISTS scraped_products")
+            connection.execute("DROP FUNCTION IF EXISTS reject_first_seen_backfill() CASCADE")
+            connection.execute("""
+                CREATE TABLE scraped_products (
+                    url TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    price_text TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    extracted_at_utc TIMESTAMPTZ NOT NULL,
+                    spider_name TEXT NOT NULL,
+                    first_seen_utc TIMESTAMPTZ NULL
+                )
+            """)
+            connection.execute(
+                "INSERT INTO scraped_products "
+                "(url, title, price_text, source_url, extracted_at_utc, spider_name, first_seen_utc) "
+                "VALUES (%s, %s, %s, %s, %s, %s, NULL)",
+                (
+                    legacy_url,
+                    "Migration retry row",
+                    "$4.00",
+                    "https://example.test/products/",
+                    datetime(2025, 1, 2, 3, 4, tzinfo=timezone.utc),
+                    "migration-retry-test",
+                ),
+            )
+            connection.execute("""
+                CREATE FUNCTION reject_first_seen_backfill() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'simulated temporary backfill failure';
+                END;
+                $$
+            """)
+            connection.execute("""
+                CREATE TRIGGER reject_first_seen_backfill
+                BEFORE UPDATE OF first_seen_utc ON scraped_products
+                FOR EACH ROW EXECUTE FUNCTION reject_first_seen_backfill()
+            """)
+
+        migration = Path(__file__).with_name("002_add_first_seen_utc.sql").read_text()
+        with psycopg.connect(DSN) as connection:
+            with self.assertRaisesRegex(psycopg.Error, "simulated temporary backfill failure"):
+                connection.execute(migration)
+            connection.rollback()
+
+        # The failed migration must not leave a partially enforced schema.
+        with psycopg.connect(DSN) as connection:
+            metadata = connection.execute(
+                "SELECT is_nullable, column_default FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scraped_products' "
+                "AND column_name = 'first_seen_utc'"
+            ).fetchone()
+            row = connection.execute(
+                "SELECT first_seen_utc FROM scraped_products WHERE url = %s",
+                (legacy_url,),
+            ).fetchone()
+            self.assertEqual(metadata[0], "YES")
+            self.assertIsNone(metadata[1])
+            self.assertEqual(row, (None,))
+            connection.execute("DROP TRIGGER reject_first_seen_backfill ON scraped_products")
+            connection.execute("DROP FUNCTION reject_first_seen_backfill()")
+
+        # After removing the transient failure, retry twice and verify the
+        # migration converges to its intended schema without losing the row.
+        with psycopg.connect(DSN) as connection:
+            connection.execute(migration)
+            connection.execute(migration)
+            metadata = connection.execute(
+                "SELECT is_nullable, column_default FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scraped_products' "
+                "AND column_name = 'first_seen_utc'"
+            ).fetchone()
+            row = connection.execute(
+                "SELECT title, first_seen_utc FROM scraped_products WHERE url = %s",
+                (legacy_url,),
+            ).fetchone()
+
+        self.assertEqual(metadata[0], "NO")
+        self.assertIn("CURRENT_TIMESTAMP", metadata[1])
+        self.assertEqual(row[0], "Migration retry row")
+        self.assertIsInstance(row[1], datetime)
+        self.assertEqual(row[1].utcoffset(), timezone.utc.utcoffset(row[1]))
+
+
 if __name__ == "__main__":
     unittest.main()

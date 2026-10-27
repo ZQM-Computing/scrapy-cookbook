@@ -14,6 +14,7 @@ import unittest
 import uuid
 
 DSN = os.environ.get("SCRAPY_POSTGRES_DSN")
+ALLOW_DESTRUCTIVE_TESTS = os.environ.get("SCRAPY_POSTGRES_ALLOW_DESTRUCTIVE_TESTS") == "1"
 
 
 def sha256_file(path):
@@ -60,7 +61,11 @@ class BackupManifestTests(unittest.TestCase):
             self.assertFalse(manifest_matches(backup, wrong_name_manifest))
 
 
-@unittest.skipUnless(DSN, "set SCRAPY_POSTGRES_DSN to a disposable PostgreSQL test database")
+@unittest.skipUnless(
+    DSN and ALLOW_DESTRUCTIVE_TESTS,
+    "set SCRAPY_POSTGRES_DSN to a disposable database and "
+    "SCRAPY_POSTGRES_ALLOW_DESTRUCTIVE_TESTS=1 to enable database creation/drop tests",
+)
 class PostgresBackupRestoreTests(unittest.TestCase):
     def test_custom_dump_restores_data_schema_constraints_and_indexes(self):
         import psycopg

@@ -173,6 +173,26 @@ class PostgresBackupRestoreTests(unittest.TestCase):
                     f"{sha256_file(dump_path)}  {dump_path.name}\n", encoding="ascii"
                 )
                 self.assertTrue(manifest_matches(dump_path, digest_path))
+
+                # Exercise archive-level rejection as well as checksum
+                # detection: a truncated dump must not pass pg_restore's
+                # archive-listing preflight. Do not attempt a restore from it.
+                truncated_path = Path(tmp) / "truncated.dump"
+                truncated_path.write_bytes(dump_path.read_bytes()[: max(1, dump_path.stat().st_size // 2)])
+                truncated_check = subprocess.run(
+                    [pg_restore, "--list", str(truncated_path)],
+                    env=pg_env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertNotEqual(
+                    truncated_check.returncode,
+                    0,
+                    "pg_restore unexpectedly accepted a deliberately truncated archive",
+                )
+
                 # A trusted manifest detects accidental corruption; a sidecar
                 # alone does not protect against both files being replaced.
                 corrupted_dir = Path(tmp) / "corrupted"

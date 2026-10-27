@@ -86,11 +86,11 @@ scrapy-cookbook/
 
 ## PostgreSQL operations
 
-The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md) and an automated disposable-database restore smoke test in CI. The test verifies restored records and selected schema objects; it does not certify production backup storage, retention, or recovery objectives.
+The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md) and an automated disposable-database restore smoke test in CI. The test verifies restored records, selected schema objects, and least-privilege runtime access. See the [application configuration recovery guide](docs/APPLICATION-CONFIGURATION-RECOVERY.md) and [recovery drill record](docs/POSTGRES-RECOVERY-DRILL-RECORD.md) for service-level recovery evidence; these documents do not certify production readiness.
 
 ## Roadmap
 
-- PostgreSQL service-container coverage includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. The pipeline now discards its connection after a commit error because the transaction outcome can be uncertain, and does not retry automatically. Remaining gaps include backup/restore validation, live network-interruption testing, and broader legacy-schema coverage.
+- PostgreSQL service-container coverage includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. The pipeline now discards its connection after a commit error because the transaction outcome can be uncertain, and does not retry automatically. Automated backup/restore smoke coverage and post-restore least-privilege checks are implemented. Remaining gaps include live network-interruption testing, broader legacy-schema coverage, and deployment-specific recovery evidence for configuration, secrets, and external dependencies.
 
 ## Contributing
 

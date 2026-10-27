@@ -97,6 +97,10 @@ python -m unittest discover -s examples/04-postgres-export -p 'test_postgres_bac
 
 Replace the example DSN with test-only credentials. The account must be able to connect to the maintenance database and create databases. The automated smoke test validates a sample post-restore least-privilege grant setup, but does not recover production roles or grants, validate off-host backup storage or retention, recover application secrets/configuration, or establish a deployment's actual RPO/RTO. It is not a substitute for a scheduled restore drill against the approved backup repository.
 
+## 5. Application configuration and dependency recovery
+
+Database restoration is only one part of service recovery. Follow the [application configuration and secret recovery guide](../../docs/APPLICATION-CONFIGURATION-RECOVERY.md) to inventory non-secret configuration, recover approved secret references without exposing values, validate DNS/routing/TLS/authentication/authorization in order, and record application smoke-test evidence. Do not treat a database-only restore as proof that the complete service can recover.
+
 ## 5. Recovery limitations and operating policy
 
 - Define and approve the recovery-point objective (RPO), recovery-time objective (RTO), retention schedule, encryption, off-host/off-account storage, and restore-test cadence for the actual deployment.

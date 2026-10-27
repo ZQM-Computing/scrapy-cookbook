@@ -10,9 +10,14 @@ from postgres_pipeline import PostgresExportPipeline
 
 
 DSN = os.environ.get("SCRAPY_POSTGRES_DSN")
+ALLOW_DESTRUCTIVE_TESTS = os.environ.get("SCRAPY_POSTGRES_ALLOW_DESTRUCTIVE_TESTS") == "1"
 
 
-@unittest.skipUnless(DSN, "set SCRAPY_POSTGRES_DSN to run live PostgreSQL integration tests")
+@unittest.skipUnless(
+    DSN and ALLOW_DESTRUCTIVE_TESTS,
+    "set SCRAPY_POSTGRES_DSN to a disposable database and "
+    "SCRAPY_POSTGRES_ALLOW_DESTRUCTIVE_TESTS=1 to enable destructive integration tests",
+)
 class PostgresExportIntegrationTests(unittest.TestCase):
     def setUp(self):
         import psycopg

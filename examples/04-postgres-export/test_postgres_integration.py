@@ -171,6 +171,75 @@ class PostgresExportIntegrationTests(unittest.TestCase):
         self.assertIn("CURRENT_TIMESTAMP", metadata[1])
         self.assertEqual(metadata[2], "timestamp with time zone")
 
+    def test_versioned_migration_adds_default_to_existing_not_null_column(self):
+        import psycopg
+
+        # Cover a different partial-upgrade state: the column exists and is
+        # already NOT NULL, but lacks the documented default. The migration
+        # must repair metadata without rewriting the existing timestamp.
+        legacy_url = "https://example.test/products/missing-default"
+        original_timestamp = datetime(2024, 6, 7, 8, 9, tzinfo=timezone.utc)
+        with psycopg.connect(DSN) as connection:
+            connection.execute("DROP TABLE IF EXISTS scraped_products")
+            connection.execute("""
+                CREATE TABLE scraped_products (
+                    url TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    price_text TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    extracted_at_utc TIMESTAMPTZ NOT NULL,
+                    spider_name TEXT NOT NULL,
+                    first_seen_utc TIMESTAMPTZ NOT NULL
+                )
+            """)
+            connection.execute(
+                "INSERT INTO scraped_products "
+                "(url, title, price_text, source_url, extracted_at_utc, spider_name, first_seen_utc) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    legacy_url,
+                    "Existing timestamp",
+                    "$9.00",
+                    "https://example.test/products/",
+                    original_timestamp,
+                    "migration-test",
+                    original_timestamp,
+                ),
+            )
+
+        migration = Path(__file__).with_name("002_add_first_seen_utc.sql").read_text()
+        with psycopg.connect(DSN) as connection:
+            connection.execute(migration)
+            connection.execute(migration)
+            metadata = connection.execute(
+                "SELECT is_nullable, column_default FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'scraped_products' "
+                "AND column_name = 'first_seen_utc'"
+            ).fetchone()
+            row = connection.execute(
+                "SELECT first_seen_utc FROM scraped_products WHERE url = %s",
+                (legacy_url,),
+            ).fetchone()
+            inserted = connection.execute(
+                "INSERT INTO scraped_products "
+                "(url, title, price_text, source_url, extracted_at_utc, spider_name) "
+                "VALUES (%s, %s, %s, %s, %s, %s) RETURNING first_seen_utc",
+                (
+                    "https://example.test/products/default-applied",
+                    "Default applied",
+                    "$1.00",
+                    "https://example.test/products/",
+                    original_timestamp,
+                    "migration-test",
+                ),
+            ).fetchone()
+
+        self.assertEqual(metadata[0], "NO")
+        self.assertIn("CURRENT_TIMESTAMP", metadata[1])
+        self.assertEqual(row[0], original_timestamp)
+        self.assertIsInstance(inserted[0], datetime)
+        self.assertEqual(inserted[0].utcoffset(), timezone.utc.utcoffset(inserted[0]))
+
     def test_failed_insert_rolls_back_and_pipeline_can_continue(self):
         import psycopg
 

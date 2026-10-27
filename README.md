@@ -86,7 +86,7 @@ scrapy-cookbook/
 
 ## PostgreSQL operations
 
-The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md) and an automated disposable-database restore smoke test in CI. The test verifies restored records and selected schema objects; it does not certify production backup storage, retention, or recovery objectives.
+The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md) and an automated disposable-database restore smoke test in CI. The test verifies restored records, selected schema objects, and least-privilege runtime access. See the [application configuration recovery guide](docs/APPLICATION-CONFIGURATION-RECOVERY.md) and [recovery drill record](docs/POSTGRES-RECOVERY-DRILL-RECORD.md) for service-level recovery evidence; these documents do not certify production readiness.
 
 ## Roadmap
 

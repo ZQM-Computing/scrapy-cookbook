@@ -204,6 +204,62 @@ class PostgresExportIntegrationTests(unittest.TestCase):
             ).fetchall()
         self.assertEqual(rows, [("https://example.test/products/after-failure",)])
 
+    def test_terminated_backend_discards_broken_connection_and_new_pipeline_recovers(self):
+        import psycopg
+
+        # Terminate this pipeline's server session from a separate connection.
+        # This is a deterministic integration test of a lost PostgreSQL session,
+        # not a simulation of every possible network partition or lost COMMIT ACK.
+        backend_pid = self.pipeline.connection.info.backend_pid
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            terminated = admin.execute(
+                "SELECT pg_terminate_backend(%s)", (backend_pid,)
+            ).fetchone()[0]
+        self.assertTrue(terminated)
+
+        interrupted_item = {
+            **self.item,
+            "url": "https://example.test/products/connection-terminated",
+        }
+        with self.assertRaises(psycopg.Error):
+            self.pipeline.process_item(interrupted_item, self.spider)
+
+        # A failed rollback after backend termination must detach the dead
+        # connection. The pipeline must not continue using it or retry the item.
+        self.assertIsNone(self.pipeline.connection)
+
+        with psycopg.connect(DSN) as connection:
+            count = connection.execute(
+                "SELECT count(*) FROM scraped_products WHERE url = %s",
+                (interrupted_item["url"],),
+            ).fetchone()[0]
+        self.assertEqual(count, 0)
+
+        # Recovery is explicit: construct a new pipeline/connection and submit
+        # a distinct item. No automatic retry of the interrupted item occurs.
+        recovered_pipeline = PostgresExportPipeline(DSN)
+        recovered_spider = type("RecoverySpider", (), {"name": "recovery-test"})()
+        recovered_pipeline.open_spider(recovered_spider)
+        recovered_item = {
+            **self.item,
+            "url": "https://example.test/products/after-session-recovery",
+            "spider_name": recovered_spider.name,
+        }
+        try:
+            self.assertIs(
+                recovered_pipeline.process_item(recovered_item, recovered_spider),
+                recovered_item,
+            )
+        finally:
+            recovered_pipeline.close_spider(recovered_spider)
+
+        with psycopg.connect(DSN) as connection:
+            row = connection.execute(
+                "SELECT title, spider_name FROM scraped_products WHERE url = %s",
+                (recovered_item["url"],),
+            ).fetchone()
+        self.assertEqual(row, ("Integration test product", "recovery-test"))
+
     def test_least_privilege_role_can_insert_without_schema_ddl(self):
         import psycopg
         from psycopg import sql

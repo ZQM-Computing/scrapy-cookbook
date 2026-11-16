@@ -50,6 +50,7 @@ class CatalogSpiderTests(unittest.TestCase):
         settings = CatalogSpider.custom_settings
         self.assertTrue(settings["ROBOTSTXT_OBEY"])
         self.assertEqual(settings["DOWNLOAD_DELAY"], 1.0)
+        self.assertEqual(settings["DOWNLOAD_DELAY_JITTER"], 0.0)
         self.assertEqual(settings["CONCURRENT_REQUESTS_PER_DOMAIN"], 1)
         self.assertTrue(settings["AUTOTHROTTLE_ENABLED"])
         self.assertEqual(settings["CLOSESPIDER_PAGECOUNT"], 5)

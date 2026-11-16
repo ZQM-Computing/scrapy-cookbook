@@ -15,6 +15,7 @@ class CatalogSpider(scrapy.Spider):
         "ROBOTSTXT_OBEY": True,
         "USER_AGENT": "ZQMScrapyCookbook/1.0 (+https://github.com/ZQM-Computing/scrapy-cookbook; educational example)",
         "DOWNLOAD_DELAY": 1.0,
+        "DOWNLOAD_DELAY_JITTER": 0.0,
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
         "AUTOTHROTTLE_ENABLED": True,
         "AUTOTHROTTLE_START_DELAY": 1.0,

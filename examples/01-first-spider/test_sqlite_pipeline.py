@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from scrapy.exceptions import DropItem
@@ -82,7 +83,7 @@ class SQLiteDeduplicationPipelineTests(unittest.TestCase):
     def test_database_can_be_reopened_and_records_survive(self):
         self.pipeline.process_item(self.item, self.spider)
         self.pipeline.close_spider(self.spider)
-        with sqlite3.connect(self.database_path) as connection:
+        with closing(sqlite3.connect(self.database_path)) as connection:
             count = connection.execute("SELECT COUNT(*) FROM seen_products").fetchone()[0]
         self.assertEqual(count, 1)
 

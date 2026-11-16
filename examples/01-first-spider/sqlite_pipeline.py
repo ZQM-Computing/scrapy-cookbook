@@ -56,19 +56,19 @@ class SQLiteDeduplicationPipeline:
         adapter = ItemAdapter(item)
         raw_url = adapter.get("url")
         canonical_url = ProductValidationPipeline._canonical_http_url(raw_url, "url")
-        cursor = self.connection.execute(
-            """
-            INSERT OR IGNORE INTO seen_products
-                (canonical_url, first_seen_utc, first_spider)
-            VALUES (?, ?, ?)
-            """,
-            (
-                canonical_url,
-                datetime.now(timezone.utc).isoformat(),
-                spider.name,
-            ),
-        )
-        self.connection.commit()
+        with self.connection:
+            cursor = self.connection.execute(
+                """
+                INSERT OR IGNORE INTO seen_products
+                    (canonical_url, first_seen_utc, first_spider)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    canonical_url,
+                    datetime.now(timezone.utc).isoformat(),
+                    spider.name,
+                ),
+            )
         if cursor.rowcount == 0:
             raise DropItem(f"duplicate product URL already persisted: {canonical_url}")
         return item

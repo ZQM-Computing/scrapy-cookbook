@@ -75,6 +75,27 @@ class SQLiteDeduplicationPipelineTests(unittest.TestCase):
         }
         self.assertIs(self.pipeline.process_item(second, self.spider), second)
 
+    def test_failed_commit_rolls_back_before_processing_next_item(self):
+        self.pipeline.connection.execute("PRAGMA busy_timeout = 1")
+        with closing(sqlite3.connect(self.database_path)) as reader:
+            reader.execute("BEGIN")
+            reader.execute("SELECT * FROM seen_products").fetchall()
+            try:
+                with self.assertRaisesRegex(sqlite3.OperationalError, "locked"):
+                    self.pipeline.process_item(self.item, self.spider)
+                self.assertFalse(self.pipeline.connection.in_transaction)
+            finally:
+                reader.rollback()
+
+        second = {**self.item, "url": self.item["url"] + "?edition=2"}
+        self.assertIs(self.pipeline.process_item(second, self.spider), second)
+        with closing(sqlite3.connect(self.database_path)) as observer:
+            self.assertEqual(
+                observer.execute("SELECT canonical_url FROM seen_products").fetchall(),
+                [(second["url"],)],
+            )
+        self.assertIs(self.pipeline.process_item(self.item, self.spider), self.item)
+
     def test_refuses_directory_as_database_path(self):
         pipeline = SQLiteDeduplicationPipeline(self.temp_dir.name)
         with self.assertRaisesRegex(ValueError, "is a directory"):

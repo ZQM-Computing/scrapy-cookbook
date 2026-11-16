@@ -60,12 +60,13 @@ class CrawlSummaryExtension:
         relevant_stats = {}
         prefixes = (
             "downloader/response_status_count/",
-            "downloader/exception_count/",
+            "downloader/exception_type_count/",
             "spider_exceptions/",
             "item_dropped_reasons_count/",
             "log_count/",
         )
         exact = {
+            "downloader/exception_count",
             "elapsed_time_seconds", "finish_reason", "finish_time",
             "item_dropped_count", "item_scraped_count", "response_received_count",
             "request_count", "start_time",

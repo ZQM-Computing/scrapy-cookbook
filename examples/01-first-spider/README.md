@@ -27,11 +27,17 @@ Output contains `title`, `price_text` (kept as source text rather than incorrect
 
 The example enables an optional summary extension. To write a machine-readable report, pass a path at runtime:
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:a243a717e0c8c341299eb20071b6de3204ea3ebf0ec533bd2d144c5e37491ac6 -->
+
 ```sh
-scrapy runspider examples/01-first-spider/spider.py \\
-  -s CRAWL_SUMMARY_PATH=./var/crawl-summary.json \\
+scrapy runspider examples/01-first-spider/spider.py \
+  -s CRAWL_SUMMARY_PATH=./var/crawl-summary.json \
   -O products.json
 ```
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 The extension writes the JSON summary when the spider closes, using a temporary file and atomic replacement. It includes spider identity, UTC start/close timestamps, close reason, selected Scrapy stats (including response status and downloader exception counts when present), item-drop categories, pipeline/spider error counts by exception type, and scheduler-dropped request count. It does not store exception messages or scraped item contents in the summary. The report is an operational aid, not a complete audit log: extraction skips logged directly by the spider and failures that Scrapy does not expose through the connected signals may not appear as a dedicated category. Protect and retain the report according to your data-governance requirements.
 
@@ -42,14 +48,21 @@ The default in-memory pipeline is lightweight and requires no database, but forg
 1. Keep the validation pipeline enabled.
 2. Set a writable database path and replace the in-memory pipeline entry in `CatalogSpider.custom_settings`:
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:2cbf5727b758fa117edb7381bfc1c4d74ae65e901151d7365ac870f26d44aae9 -->
+
 ```python
 "SCRAPY_DEDUPE_DB": "./var/catalog-dedupe.sqlite3",
 "PRODUCT_DEDUPE_IN_MEMORY": False,
 "ITEM_PIPELINES": {
+    "provenance_pipeline.ProvenancePipeline": 100,
     "pipeline.ProductValidationPipeline": 300,
     "sqlite_pipeline.SQLiteDeduplicationPipeline": 400,
 },
 ```
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 The persistent pipeline is deliberately optional and is not enabled by default. Set `PRODUCT_DEDUPE_IN_MEMORY=False` so the validation pipeline continues validating fields and URLs without doing in-memory duplicate filtering; the SQLite pipeline then owns duplicate detection. Keep validation ordered before SQLite so malformed items are rejected before database writes.
 

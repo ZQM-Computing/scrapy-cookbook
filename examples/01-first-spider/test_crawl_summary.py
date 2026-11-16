@@ -20,6 +20,8 @@ class FakeStats:
             "response_received_count": 5,
             "finish_reason": "finished",
             "downloader/response_status_count/200": 5,
+            "downloader/exception_count": 2,
+            "downloader/exception_type_count/builtins.TimeoutError": 2,
             "secret_or_unrelated_stat": "must not leak",
         }
 
@@ -43,6 +45,11 @@ class CrawlSummaryTests(unittest.TestCase):
             self.assertEqual(summary["spider_name"], "catalog-test")
             self.assertEqual(summary["close_reason"], "finished")
             self.assertEqual(summary["stats"]["item_scraped_count"], 3)
+            self.assertEqual(summary["stats"]["downloader/exception_count"], 2)
+            self.assertEqual(
+                summary["stats"]["downloader/exception_type_count/builtins.TimeoutError"],
+                2,
+            )
             self.assertEqual(summary["item_drop_categories"], {
                 "duplicate": 1,
                 "validation_or_policy": 1,

@@ -40,7 +40,7 @@ Data engineers who collect public web data into structured datasets.
 | 01 | [`01-first-spider`](examples/01-first-spider/README.md) | Implemented; offline tests cover provenance, validation/deduplication, and summary output | CSS selectors, pagination, UTC provenance, schema/URL validation, per-run or persistent deduplication, crawl-quality summaries, and restart-safe JSONL export |
 | 02 | `02-robots-delay` | Planned | Robots compliance, delays, and polite crawling settings |
 | 03 | `03-pipelines` | Partially covered by pattern 01 | Required-field/URL validation, in-memory duplicate filtering, and optional SQLite persistence across restarts |
-| 04 | `04-postgres-export` | Planned | Exporting items into Postgres for analysis |
+| 04 | [`04-postgres-export`](examples/04-postgres-export/README.md) | Implemented; fake-connection unit tests and PostgreSQL 15 service-container integration tests | Parameterized inserts, UTC validation, per-item transactions, URL idempotency, migration guidance, connection timeout, and secret handling |
 
 ## Quick start
 
@@ -73,13 +73,24 @@ scrapy-cookbook/
 │   ├── test_spider.py
 │   ├── test_sqlite_pipeline.py
 │   └── test_jsonl_export_pipeline.py
+├── examples/04-postgres-export/
+│   ├── README.md
+│   ├── OPERATIONS.md
+│   ├── requirements.txt
+│   ├── 001_create_scraped_products.sql
+│   ├── postgres_pipeline.py
+│   └── test_postgres_pipeline.py
 ├── README.md
 └── LICENSE
 ```
 
+## PostgreSQL operations
+
+The optional PostgreSQL pattern includes a [backup and restore runbook](examples/04-postgres-export/OPERATIONS.md) and an automated disposable-database restore smoke test in CI. The test verifies restored records, selected schema objects, and least-privilege runtime access. See the [application configuration recovery guide](docs/APPLICATION-CONFIGURATION-RECOVERY.md) and [recovery drill record](docs/POSTGRES-RECOVERY-DRILL-RECORD.md) for service-level recovery evidence; these documents do not certify production readiness.
+
 ## Roadmap
 
-- Next: add a dedicated Postgres export pattern (04), with supported-version policy, schema migrations, transaction boundaries, connection-secret handling, and integration-test strategy.
+- PostgreSQL service-container coverage includes failed-write rollback recovery and a versioned migration from the documented legacy schema missing `first_seen_utc`. The pipeline now discards its connection after a commit error because the transaction outcome can be uncertain, and does not retry automatically. Automated backup/restore smoke coverage and post-restore least-privilege checks are implemented. Remaining gaps include live network-interruption testing, broader legacy-schema coverage, and deployment-specific recovery evidence for configuration, secrets, and external dependencies.
 
 ## Contributing
 

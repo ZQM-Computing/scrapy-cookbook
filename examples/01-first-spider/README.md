@@ -72,21 +72,9 @@ Configure this pipeline as an alternative to both the in-memory duplicate filter
 },
 ```
 
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:e180f2c6432140f54d1aacfe208d1e2de6268476fe83fcf3b0c9d2a086de02e0 -->
-
 Add these entries to `CatalogSpider.custom_settings`, replacing its existing `ITEM_PIPELINES` mapping. Alternatively, add them to project settings and remove `ITEM_PIPELINES` from `CatalogSpider.custom_settings`, because spider settings take precedence over project settings. Then run the spider as usual. The database is the durable staging source; the JSONL snapshot is regenerated at spider close. If snapshot replacement fails, the prior output remains intact and committed staging records remain available for a later retry. A rerun with already-seen canonical URLs does not duplicate exported rows.
 
-<!-- /coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:74ae81f3f3edb5676974f376dce1b37f905e26440793a5aa12aa67ce7f0d59e6 -->
-
 This is a single-host pattern, not distributed coordination. Exporters that share a database or output path must not run concurrently: a slower run can replace a newer snapshot with one that omits later rows. Keep the SQLite database and exported data under appropriate access controls, back them up, and define retention. Atomic replacement protects the local snapshot from partial writes but does not guarantee durability against every filesystem or hardware failure. The JSONL snapshot is a full retained-data export, not just records from the latest run.
-
-<!-- /coderabbit-ai-generated:v1 -->
 
 ## Test without network access
 

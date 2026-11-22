@@ -17,9 +17,14 @@ jobs:
   first-spider:
     name: First spider unit tests (Python 3.11)
     runs-on: [self-hosted, Linux, X64, zqm-linux]
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+      - name: Install SQLite runtime library
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libsqlite3-0
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -34,6 +39,7 @@ jobs:
   postgres-export:
     name: PostgreSQL export unit tests (no database)
     runs-on: [self-hosted, Linux, X64, zqm-linux]
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -51,6 +57,7 @@ jobs:
   postgres-integration:
     name: PostgreSQL 15 integration tests
     runs-on: [self-hosted, Linux, X64, zqm-linux]
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:15
